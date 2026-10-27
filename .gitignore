@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+# .env.*.local 등 로컬 전용 파일. 커밋되는 .env.* 에는 공개 가능한 VITE_ 값만 둔다
+*.local
+
+# Tool caches / reports
+coverage
+.eslintcache
+
+# Claude Code 개인 설정
+**/.claude/settings.local.json
+
+# Editor directories and files
+**/.vscode/*
+!**/.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
