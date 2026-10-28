@@ -1,8 +1,17 @@
+import { useNavigate, useSearchParams } from 'react-router'
 import SocialLoginButton from '../components/SocialLoginButton'
+import { useLoginErrorAlert } from '../hooks/useLoginErrorAlert'
 import { useSocialLogin } from '../hooks/useSocialLogin'
 
 function LoginPage() {
   const { startLogin } = useSocialLogin()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+
+  // alert를 닫으면 ?error=를 지운 /login으로 이동한다 (새로고침 시 다시 뜨지 않도록)
+  useLoginErrorAlert(searchParams.get('error'), () =>
+    navigate('/login', { replace: true }),
+  )
 
   return (
     <main className="flex min-h-dvh flex-col bg-black px-6 text-white">
