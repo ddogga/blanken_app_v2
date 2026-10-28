@@ -5,7 +5,7 @@ function LoginPage() {
     <main className="flex min-h-dvh flex-col bg-black px-6 text-white">
       <section className="flex flex-1 items-center justify-center">
         <h1 className="text-5xl font-extrabold tracking-tight md:text-6xl">
-          blanken
+          blankEN
         </h1>
       </section>
 
