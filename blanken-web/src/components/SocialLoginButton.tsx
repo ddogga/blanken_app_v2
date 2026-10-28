@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-
-export type SocialProvider = 'kakao' | 'naver'
+import type { SocialProvider } from '../types/auth'
 
 type ButtonStyle = {
   label: string
