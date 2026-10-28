@@ -85,14 +85,21 @@ function QuizPlay() {
   (RN의 저장소 API는 비동기이므로, 웹에서 동기로 짜두면 전환 시 호출부를 전부 고쳐야 한다)
 
 ```ts
-// platform/storage.ts
-export const tokenStorage = {
-  get: async (): Promise<string | null> => localStorage.getItem("accessToken"),
-  set: async (token: string) => localStorage.setItem("accessToken", token),
-  clear: async () => localStorage.removeItem("accessToken"),
+// platform/storage.ts (예시: 토큰이 아닌 일반 설정값)
+export const settingsStorage = {
+  get: async (key: string): Promise<string | null> => localStorage.getItem(key),
+  set: async (key: string, value: string) => localStorage.setItem(key, value),
+  remove: async (key: string) => localStorage.removeItem(key),
 };
-// RN 전환 시 이 파일만 expo-secure-store 구현으로 교체
+// RN 전환 시 이 파일만 AsyncStorage 구현으로 교체
+
+// platform/navigation.ts (예시: 앱 밖으로 나가는 전체 페이지 이동)
+export const openExternal = async (url: string) => {
+  window.location.href = url;
+};
 ```
+
+- 토큰은 브라우저 저장소에 넣지 않는다. 아래 "인증" 절 참고.
 
 - 라우팅 이동도 페이지/컴포넌트 레이어에서만 처리한다. 훅은 `navigate`를 직접 호출하지 말고
   성공/실패 결과를 반환하거나 콜백(`onSuccess`)을 받는다. (React Router → Expo Router 교체 대비)
@@ -105,12 +112,31 @@ export const tokenStorage = {
 
 ## 서버 연동
 
-- 개발 환경: Vite 프록시로 `/api` → `http://localhost:8080` (CORS 회피). 백엔드에 CORS 설정을 추가하지 않는다.
-- 베이스 URL은 `import.meta.env.VITE_API_BASE_URL`에서 읽는다.
-  단, `import.meta.env` 참조는 `api/` 의 axios 인스턴스 생성부 한 곳에서만 한다.
+- 서버는 `http://localhost:8080`, context-path `/blanken`. 모든 서버 경로는 `/blanken/...`으로 시작한다.
+- 프론트 개발 서버는 `http://localhost:5173`. (서버의 허용 origin·리다이렉트 주소도 5173 기준)
+- 개발 환경: Vite 프록시로 `/blanken` → `http://localhost:8080`. API 호출은 같은 origin(`/blanken/...`)으로 보내 CORS에 의존하지 않는다.
+- 단, **소셜 로그인 시작은 프록시를 거치지 않고** 서버 주소(`http://localhost:8080/blanken/oauth2/authorization/{provider}`)로 직접 전체 페이지 이동한다.
+- 환경변수:
+  - `VITE_API_BASE_URL` — axios 베이스 URL (개발: `/blanken`)
+  - `VITE_OAUTH_BASE_URL` — 소셜 로그인 시작 주소의 베이스 (개발: `http://localhost:8080/blanken`) _(로그인 구현 시 추가)_
+  - `import.meta.env` 참조는 **`api/config.ts` 한 곳에서만** 하고, 다른 곳은 여기서 export한 값을 쓴다.
 - `VITE_` 환경변수는 빌드 결과물에 노출된다. 비밀값(키, 시크릿)을 넣지 않는다.
-- 인증: JWT. 토큰은 `platform/storage`로 저장하고, axios 인터셉터에서 헤더 주입·401 처리를 일괄로 한다.
-- 앱 전체가 로그인 전제다. 비로그인 상태로 진입할 수 있는 화면은 로그인/회원가입뿐이다.
+
+### 인증
+
+- 소셜 로그인(카카오·네이버)만 지원한다. 이메일/비밀번호 로그인은 없다.
+- **Access Token**: 응답 본문으로 받고 **메모리(Zustand 스토어)에만** 둔다.
+  `localStorage`·`sessionStorage`·쿠키 등 브라우저 저장소에 저장하지 않는다.
+  요청 시 `Authorization: Bearer {accessToken}`.
+- **Refresh Token**: 서버가 HttpOnly 쿠키로 관리한다. 프론트는 읽거나 다루지 않는다.
+  `/auth/refresh`, `/auth/logout` 호출에는 `withCredentials: true`를 붙인다.
+- 권한(GUEST / USER)은 Access Token(JWT)의 role 클레임에서 읽는다. 화면 분기 용도로만 쓰고 검증은 서버가 한다.
+- 새로고침·재진입 시 토큰이 사라지므로, 앱 시작 시 `/auth/refresh`를 먼저 호출해 로그인 상태를 복원한다.
+  결과가 나오기 전까지는 라우트 판단을 하지 않는다(로딩 표시).
+- 헤더 주입·401/403 처리·토큰 재발급은 axios 인터셉터에서 일괄로 한다.
+  **재발급은 동시에 한 번만** 한다. Refresh Token은 1회용(Rotation)이므로, 진행 중인 refresh Promise를 하나만 두고 다른 요청은 그 결과를 기다린다.
+- 앱 전체가 로그인 전제다. 비로그인 상태로 진입할 수 있는 화면은 로그인(`/login`)뿐이다.
+  회원가입(`/signup`)은 GUEST 토큰을 받은 신규 회원만 진입한다.
 
 ## 도메인 규칙 (프론트 관련)
 
