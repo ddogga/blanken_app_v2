@@ -15,7 +15,7 @@ function QuizSetCreateModal({ onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const pressedBackdrop = useRef(false)
   const form = useQuizSetForm()
-  const { categories } = useCategories()
+  const category = useCategories()
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -132,6 +132,7 @@ function QuizSetCreateModal({ onClose }: Props) {
         </label>
         <select
           id="quiz-set-category"
+          onPointerDown={category.retryIfFailed}
           value={form.values.categoryId ?? ''}
           onChange={(e) =>
             form.setCategoryId(
@@ -143,14 +144,19 @@ function QuizSetCreateModal({ onClose }: Props) {
           }`}
         >
           <option value="" disabled>
-            카테고리를 선택해 주세요
+            {category.isLoading ? '불러오는 중...' : '카테고리를 선택해 주세요'}
           </option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
+          {category.categories.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
             </option>
           ))}
         </select>
+        {category.isError && (
+          <p className="mt-2 text-xs text-red-400">
+            카테고리를 불러오지 못했어요. 다시 눌러 주세요.
+          </p>
+        )}
 
         <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-neutral-800 px-4 py-3">
           <div>

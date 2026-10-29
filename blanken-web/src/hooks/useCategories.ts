@@ -1,13 +1,24 @@
-import type { CategoryResponse } from '../types/quizSet'
+import { useQuery } from '@tanstack/react-query'
+import { getCategories } from '../api/category'
 
-// TODO: 카테고리 조회 API가 생기면 useQuery로 교체한다. 지금은 화면 확인용 샘플 데이터
-const SAMPLE_CATEGORIES: CategoryResponse[] = [
-  { id: 1, name: '일상 회화' },
-  { id: 2, name: '비즈니스' },
-  { id: 3, name: '여행' },
-  { id: 4, name: '시험 대비' },
-]
-
+// 이 훅을 쓰는 화면(퀴즈셋 생성 모달)이 열릴 때 조회한다.
+// 한 번 받은 목록은 거의 바뀌지 않으므로 앱을 쓰는 동안 다시 받지 않는다.
 export function useCategories() {
-  return { categories: SAMPLE_CATEGORIES }
+  const query = useQuery({
+    queryKey: ['categories'],
+    queryFn: getCategories,
+    staleTime: Infinity,
+  })
+
+  // 실패한 뒤 셀렉트를 다시 누르면 재조회
+  const retryIfFailed = () => {
+    if (query.isError && !query.isFetching) void query.refetch()
+  }
+
+  return {
+    categories: query.data ?? [],
+    isLoading: query.isFetching && !query.data,
+    isError: query.isError && !query.isFetching,
+    retryIfFailed,
+  }
 }
