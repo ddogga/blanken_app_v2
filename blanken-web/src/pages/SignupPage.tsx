@@ -1,5 +1,7 @@
+import { useNavigate } from 'react-router'
 import AgreementCheckbox from '../components/AgreementCheckbox'
 import { NICKNAME_MAX_LENGTH, type AgreementKey } from '../domain/signup'
+import { useSignup } from '../hooks/useSignup'
 import { useSignupForm } from '../hooks/useSignupForm'
 
 const AGREEMENT_ITEMS: {
@@ -14,11 +16,23 @@ const AGREEMENT_ITEMS: {
 
 function SignupPage() {
   const form = useSignupForm()
+  const navigate = useNavigate()
+  const signup = useSignup({
+    onSuccess: () => navigate('/', { replace: true }),
+    onAlreadySignedUp: () => navigate('/', { replace: true }),
+    onLoginRequired: () => navigate('/login', { replace: true }),
+  })
+
+  // 클라이언트 검증 에러가 우선, 없으면 서버가 돌려준 닉네임 에러
+  const nicknameError = form.nicknameError ?? signup.nicknameServerError
 
   return (
     <main className="flex min-h-dvh flex-col bg-black px-6 text-white">
       <form
-        onSubmit={(e) => e.preventDefault()}
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (form.canSubmit) signup.submit(form.buildRequest())
+        }}
         className="mx-auto flex w-full max-w-sm flex-1 flex-col pt-14 pb-10"
       >
         <p className="text-xl font-extrabold tracking-tight">blankEN</p>
@@ -35,17 +49,20 @@ function SignupPage() {
           id="nickname"
           type="text"
           value={form.nickname}
-          onChange={(e) => form.setNickname(e.target.value)}
+          onChange={(e) => {
+            form.setNickname(e.target.value)
+            signup.clearServerErrors()
+          }}
           placeholder="2~20자로 입력해 주세요"
           autoComplete="off"
           className={`mt-2 h-12 rounded-xl border bg-neutral-900 px-4 text-base outline-none placeholder:text-neutral-600 ${
-            form.nicknameError
+            nicknameError
               ? 'border-red-400'
               : 'border-neutral-800 focus:border-white'
           }`}
         />
         <div className="mt-2 flex justify-between gap-4 text-xs">
-          <span className="text-red-400">{form.nicknameError}</span>
+          <span className="text-red-400">{nicknameError}</span>
           <span className="shrink-0 text-neutral-500">
             {form.nicknameLength}/{NICKNAME_MAX_LENGTH}
           </span>
@@ -71,12 +88,17 @@ function SignupPage() {
         </div>
 
         <div className="mt-auto pt-10">
+          {signup.otherErrors.map((message) => (
+            <p key={message} className="mb-3 text-center text-xs text-red-400">
+              {message}
+            </p>
+          ))}
           <button
             type="submit"
-            disabled={!form.canSubmit}
+            disabled={!form.canSubmit || signup.isPending}
             className="h-12 w-full rounded-xl bg-white font-semibold text-black transition-opacity active:opacity-80 disabled:bg-neutral-800 disabled:text-neutral-500"
           >
-            가입하기
+            {signup.isPending ? '가입 중...' : '가입하기'}
           </button>
         </div>
       </form>
