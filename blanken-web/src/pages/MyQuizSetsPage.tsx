@@ -4,8 +4,19 @@ import { QUIZ_SET_ORDER_OPTIONS, isQuizSetOrder } from '../domain/quizSet'
 import { useMyQuizSets } from '../hooks/useMyQuizSets'
 
 function MyQuizSetsPage() {
-  const { order, setOrder, quizSets, totalCount, isLoading, isError } =
-    useMyQuizSets()
+  const {
+    order,
+    setOrder,
+    quizSets,
+    totalCount,
+    isLoading,
+    isError,
+    retry,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    isLoadMoreError,
+  } = useMyQuizSets()
 
   return (
     <section className="mx-auto max-w-5xl">
@@ -61,19 +72,46 @@ function MyQuizSetsPage() {
         {isLoading ? (
           <p className="py-16 text-center text-neutral-500">불러오는 중...</p>
         ) : isError ? (
-          <p className="py-16 text-center text-neutral-500">
-            퀴즈셋을 불러오지 못했어요.
-          </p>
+          <div className="flex flex-col items-center py-16 text-neutral-500">
+            <p>퀴즈셋을 불러오지 못했어요.</p>
+            <button
+              type="button"
+              onClick={retry}
+              className="mt-4 h-10 rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900"
+            >
+              다시 시도
+            </button>
+          </div>
         ) : quizSets.length === 0 ? (
           <EmptyQuizSets />
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
-            {quizSets.map((quizSet) => (
-              <li key={quizSet.id}>
-                <QuizSetCard quizSet={quizSet} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="grid gap-4 md:grid-cols-2">
+              {quizSets.map((quizSet) => (
+                <li key={quizSet.id}>
+                  <QuizSetCard quizSet={quizSet} />
+                </li>
+              ))}
+            </ul>
+
+            {hasMore && (
+              <div className="mt-8 flex flex-col items-center">
+                {isLoadMoreError && (
+                  <p className="mb-3 text-sm text-red-400">
+                    더 불러오지 못했어요. 다시 시도해 주세요.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="h-12 w-full max-w-xs rounded-xl border border-neutral-700 text-sm font-semibold text-white transition-colors active:bg-neutral-900 disabled:text-neutral-500"
+                >
+                  {isLoadingMore ? '불러오는 중...' : '더보기'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>

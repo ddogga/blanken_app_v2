@@ -1,4 +1,5 @@
 import { formatDate } from '../domain/format'
+import { canStudyQuizSet } from '../domain/quizSet'
 import type { QuizSetResponse } from '../types/quizSet'
 
 type Props = {
@@ -38,7 +39,11 @@ function QuizSetCard({ quizSet }: Props) {
       )}
 
       <div className="mt-auto flex items-center gap-3 pt-5 text-sm text-neutral-500">
-        <span>문제 {quizSet.quizCount}개</span>
+        {canStudyQuizSet(quizSet) ? (
+          <span>문제 {quizSet.quizCount}개</span>
+        ) : (
+          <span className="text-amber-400/80">퀴즈를 추가해 주세요</span>
+        )}
         <span className="flex items-center gap-1">
           <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
             <path

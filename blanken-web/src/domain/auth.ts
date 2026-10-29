@@ -29,20 +29,37 @@ const decodeBase64Url = (input: string): string => {
 const isUserRole = (value: unknown): value is UserRole =>
   value === 'GUEST' || value === 'USER' || value === 'ADMIN'
 
-// JWT payload의 role 클레임을 읽는다. 서명 검증은 서버가 하고, 여기서는 화면 분기에만 쓴다
-export const getRoleFromAccessToken = (
+// JWT payload를 객체로 읽는다. 서명 검증은 서버가 하고, 여기서는 화면 분기·식별에만 쓴다
+const readTokenPayload = (
   accessToken: string,
-): UserRole | null => {
+): Record<string, unknown> | null => {
   const payloadPart = accessToken.split('.')[1]
   if (!payloadPart) return null
   try {
     const payload: unknown = JSON.parse(decodeBase64Url(payloadPart))
-    if (typeof payload !== 'object' || payload === null) return null
-    const role: unknown = (payload as { role?: unknown }).role
-    return isUserRole(role) ? role : null
+    return typeof payload === 'object' && payload !== null
+      ? (payload as Record<string, unknown>)
+      : null
   } catch {
     return null
   }
+}
+
+// role 클레임
+export const getRoleFromAccessToken = (
+  accessToken: string,
+): UserRole | null => {
+  const role = readTokenPayload(accessToken)?.role
+  return isUserRole(role) ? role : null
+}
+
+// sub 클레임 = userId (서버는 문자열로 넣는다)
+export const getUserIdFromAccessToken = (
+  accessToken: string,
+): number | null => {
+  const sub = readTokenPayload(accessToken)?.sub
+  const userId = typeof sub === 'string' ? Number(sub) : NaN
+  return Number.isSafeInteger(userId) && userId > 0 ? userId : null
 }
 
 // 읽을 수 없는 토큰은 로그인하지 않은 것으로 본다
