@@ -20,7 +20,7 @@ function MyQuizSetsPage() {
         </h1>
 
         {quizSets.length > 0 && (
-          <>
+          <div className="flex items-center gap-2">
             <label htmlFor="quiz-set-order" className="sr-only">
               정렬
             </label>
@@ -38,7 +38,22 @@ function MyQuizSetsPage() {
                 </option>
               ))}
             </select>
-          </>
+            <button
+              type="button"
+              aria-label="퀴즈셋 만들기"
+              className="flex size-10 items-center justify-center rounded-xl bg-white text-black transition-opacity active:opacity-80"
+            >
+              <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  d="M12 5v14M5 12h14"
+                />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
 

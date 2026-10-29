@@ -1,5 +1,8 @@
 export type SocialProvider = 'kakao' | 'naver'
 
+// 서버 UserRole. Access Token(JWT)의 role 클레임 값
+export type UserRole = 'GUEST' | 'USER' | 'ADMIN'
+
 export type SignupRequest = {
   nickname: string
   agreeTerms: boolean
