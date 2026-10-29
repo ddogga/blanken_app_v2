@@ -12,7 +12,7 @@ export const QUIZ_SET_ORDER_OPTIONS: { value: QuizSetOrder; label: string }[] =
 export const isQuizSetOrder = (value: string): value is QuizSetOrder =>
   QUIZ_SET_ORDER_OPTIONS.some((option) => option.value === value)
 
-export const QUIZ_SET_PAGE_SIZE = 10
+export const QUIZ_SET_PAGE_SIZE = 20
 
 // 서버 page는 0부터. 마지막 페이지면 더 요청하지 않는다(범위를 넘으면 빈 목록이 온다)
 export const getNextQuizSetPage = (

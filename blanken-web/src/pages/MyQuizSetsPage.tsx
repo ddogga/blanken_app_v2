@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import EmptyQuizSets from '../components/EmptyQuizSets'
 import QuizSetCard from '../components/QuizSetCard'
+import QuizSetCreateModal from '../components/QuizSetCreateModal'
 import { QUIZ_SET_ORDER_OPTIONS, isQuizSetOrder } from '../domain/quizSet'
 import { useMyQuizSets } from '../hooks/useMyQuizSets'
 
@@ -17,6 +19,8 @@ function MyQuizSetsPage() {
     isLoadingMore,
     isLoadMoreError,
   } = useMyQuizSets()
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const openCreate = () => setIsCreateOpen(true)
 
   return (
     <section className="mx-auto max-w-5xl">
@@ -52,6 +56,7 @@ function MyQuizSetsPage() {
             <button
               type="button"
               aria-label="퀴즈셋 만들기"
+              onClick={openCreate}
               className="flex size-10 items-center justify-center rounded-xl bg-white text-black transition-opacity active:opacity-80"
             >
               <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
@@ -83,7 +88,7 @@ function MyQuizSetsPage() {
             </button>
           </div>
         ) : quizSets.length === 0 ? (
-          <EmptyQuizSets />
+          <EmptyQuizSets onCreate={openCreate} />
         ) : (
           <>
             <ul className="grid gap-4 md:grid-cols-2">
@@ -114,6 +119,10 @@ function MyQuizSetsPage() {
           </>
         )}
       </div>
+
+      {isCreateOpen && (
+        <QuizSetCreateModal onClose={() => setIsCreateOpen(false)} />
+      )}
     </section>
   )
 }
