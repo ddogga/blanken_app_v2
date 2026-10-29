@@ -38,16 +38,27 @@ apiClient.interceptors.request.use((config) => {
 
 type RetryableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
 
-// TOKEN_EXPIRED면 재발급 후 원래 요청을 1회 재시도한다.
-// 그 밖의 401/403은 그대로 에러로 넘기고, 화면 이동은 호출한 쪽에서 정한다.
+// 401 처리
+// - TOKEN_EXPIRED: 재발급 후 원래 요청을 1회 재시도한다.
+// - UNAUTHORIZED / INVALID_TOKEN: 토큰을 지운다. 로그인 가드가 /login으로 보낸다.
+// 403 등 나머지는 그대로 에러로 넘기고, 화면 처리는 호출한 쪽에서 정한다.
 apiClient.interceptors.response.use(undefined, async (error: unknown) => {
   if (!axios.isAxiosError(error) || !error.config) throw error
 
   const config: RetryableConfig = error.config
   const { status, body } = toApiError(error)
-  if (status !== 401 || body?.code !== 'TOKEN_EXPIRED' || config._retried) {
+  if (status !== 401) throw error
+
+  if (body?.code === 'UNAUTHORIZED' || body?.code === 'INVALID_TOKEN') {
+    // 응답을 기다리는 사이 토큰이 새로 발급됐다면, 옛 토큰의 실패로 새 토큰을 지우지 않는다
+    const { accessToken, clearAccessToken } = useAuthStore.getState()
+    if (config.headers.Authorization === `Bearer ${accessToken}`) {
+      clearAccessToken()
+    }
     throw error
   }
+
+  if (body?.code !== 'TOKEN_EXPIRED' || config._retried) throw error
 
   config._retried = true
   const token = await refreshAccessToken()
