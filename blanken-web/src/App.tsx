@@ -29,6 +29,10 @@ function App() {
             element={<ComingSoonPage title="학습 히스토리" />}
           />
           <Route path="social" element={<ComingSoonPage title="소셜" />} />
+          <Route
+            path="quiz-sets/:quizSetId/edit"
+            element={<ComingSoonPage title="퀴즈셋 수정" />}
+          />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

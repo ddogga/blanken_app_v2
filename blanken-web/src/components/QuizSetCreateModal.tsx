@@ -4,18 +4,41 @@ import {
   QUIZ_SET_TITLE_MAX_LENGTH,
 } from '../domain/quizSetForm'
 import { useCategories } from '../hooks/useCategories'
+import { useCreateQuizSet } from '../hooks/useCreateQuizSet'
+import { useMyUserId } from '../hooks/useMyUserId'
 import { useQuizSetForm } from '../hooks/useQuizSetForm'
+import type { QuizSetResponse } from '../types/quizSet'
 
 type Props = {
   onClose: () => void
+  onCreated: (quizSet: QuizSetResponse) => void
 }
 
 // 열릴 때 마운트, 닫힐 때 언마운트된다. 그래서 다시 열면 입력값이 비어 있다
-function QuizSetCreateModal({ onClose }: Props) {
+function QuizSetCreateModal({ onClose: requestClose, onCreated }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const pressedBackdrop = useRef(false)
   const form = useQuizSetForm()
   const category = useCategories()
+  const ownerId = useMyUserId()
+  const create = useCreateQuizSet({ onSuccess: onCreated })
+
+  // 제출 중에는 닫지 않는다 (응답이 오면 생성된 퀴즈셋으로 이동하므로)
+  const onClose = () => {
+    if (!create.isPending) requestClose()
+  }
+
+  // 입력을 바꾸면 이전 서버 에러는 지운다
+  const edit = (change: () => void) => {
+    change()
+    create.clearServerErrors()
+  }
+
+  // 클라이언트 검증 에러가 우선, 없으면 서버가 돌려준 에러
+  const titleError = form.titleError ?? create.fieldErrors.title ?? null
+  const descriptionError =
+    form.descriptionError ?? create.fieldErrors.description ?? null
+  const categoryError = create.fieldErrors.categoryId ?? null
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -46,7 +69,9 @@ function QuizSetCreateModal({ onClose }: Props) {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          // TODO: 퀴즈셋 생성 API 연결
+          if (ownerId === null) return
+          const request = form.buildRequest(ownerId)
+          if (request) create.submit(request)
         }}
         className="flex flex-col p-6"
       >
@@ -82,18 +107,18 @@ function QuizSetCreateModal({ onClose }: Props) {
           id="quiz-set-title"
           type="text"
           value={form.values.title}
-          onChange={(e) => form.setTitle(e.target.value)}
+          onChange={(e) => edit(() => form.setTitle(e.target.value))}
           placeholder="퀴즈셋 제목을 입력해 주세요"
           autoComplete="off"
           autoFocus
           className={`mt-2 h-12 rounded-xl border bg-neutral-900 px-4 text-base outline-none placeholder:text-neutral-600 ${
-            form.titleError
+            titleError
               ? 'border-red-400'
               : 'border-neutral-800 focus:border-white'
           }`}
         />
         <div className="mt-2 flex justify-between gap-4 text-xs">
-          <span className="text-red-400">{form.titleError}</span>
+          <span className="text-red-400">{titleError}</span>
           <span className="shrink-0 text-neutral-500">
             {form.titleLength}/{QUIZ_SET_TITLE_MAX_LENGTH}
           </span>
@@ -108,17 +133,17 @@ function QuizSetCreateModal({ onClose }: Props) {
         <textarea
           id="quiz-set-description"
           value={form.values.description}
-          onChange={(e) => form.setDescription(e.target.value)}
+          onChange={(e) => edit(() => form.setDescription(e.target.value))}
           placeholder="어떤 문장을 담은 퀴즈셋인지 적어 주세요"
           rows={4}
           className={`mt-2 resize-none rounded-xl border bg-neutral-900 px-4 py-3 text-base outline-none placeholder:text-neutral-600 ${
-            form.descriptionError
+            descriptionError
               ? 'border-red-400'
               : 'border-neutral-800 focus:border-white'
           }`}
         />
         <div className="mt-2 flex justify-between gap-4 text-xs">
-          <span className="text-red-400">{form.descriptionError}</span>
+          <span className="text-red-400">{descriptionError}</span>
           <span className="shrink-0 text-neutral-500">
             {form.descriptionLength}/{QUIZ_SET_DESCRIPTION_MAX_LENGTH}
           </span>
@@ -135,13 +160,17 @@ function QuizSetCreateModal({ onClose }: Props) {
           onPointerDown={category.retryIfFailed}
           value={form.values.categoryId ?? ''}
           onChange={(e) =>
-            form.setCategoryId(
-              e.target.value === '' ? null : Number(e.target.value),
+            edit(() =>
+              form.setCategoryId(
+                e.target.value === '' ? null : Number(e.target.value),
+              ),
             )
           }
-          className={`mt-2 h-12 rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-base outline-none focus:border-white ${
-            form.values.categoryId === null ? 'text-neutral-600' : 'text-white'
-          }`}
+          className={`mt-2 h-12 rounded-xl border bg-neutral-900 px-4 text-base outline-none ${
+            categoryError
+              ? 'border-red-400'
+              : 'border-neutral-800 focus:border-white'
+          } ${form.values.categoryId === null ? 'text-neutral-600' : 'text-white'}`}
         >
           <option value="" disabled>
             {category.isLoading ? '불러오는 중...' : '카테고리를 선택해 주세요'}
@@ -152,10 +181,14 @@ function QuizSetCreateModal({ onClose }: Props) {
             </option>
           ))}
         </select>
-        {category.isError && (
+        {category.isError ? (
           <p className="mt-2 text-xs text-red-400">
             카테고리를 불러오지 못했어요. 다시 눌러 주세요.
           </p>
+        ) : (
+          categoryError && (
+            <p className="mt-2 text-xs text-red-400">{categoryError}</p>
+          )
         )}
 
         <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-neutral-800 px-4 py-3">
@@ -170,7 +203,7 @@ function QuizSetCreateModal({ onClose }: Props) {
             role="switch"
             aria-checked={!isPrivate}
             aria-label="공개 여부"
-            onClick={form.toggleVisibility}
+            onClick={() => edit(form.toggleVisibility)}
             className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
               isPrivate ? 'bg-neutral-700' : 'bg-white'
             }`}
@@ -183,20 +216,29 @@ function QuizSetCreateModal({ onClose }: Props) {
           </button>
         </div>
 
+        {create.formErrors.length > 0 && (
+          <ul className="mt-6 space-y-1 text-sm text-red-400">
+            {create.formErrors.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        )}
+
         <div className="mt-8 flex gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="h-12 flex-1 rounded-xl border border-neutral-700 font-semibold text-white transition-colors active:bg-neutral-900"
+            disabled={create.isPending}
+            className="h-12 flex-1 rounded-xl border border-neutral-700 font-semibold text-white transition-colors active:bg-neutral-900 disabled:text-neutral-500"
           >
             취소
           </button>
           <button
             type="submit"
-            disabled={!form.canSubmit}
+            disabled={!form.canSubmit || create.isPending}
             className="h-12 flex-1 rounded-xl bg-white font-semibold text-black transition-opacity active:opacity-80 disabled:bg-neutral-800 disabled:text-neutral-500"
           >
-            만들기
+            {create.isPending ? '만드는 중...' : '만들기'}
           </button>
         </div>
       </form>

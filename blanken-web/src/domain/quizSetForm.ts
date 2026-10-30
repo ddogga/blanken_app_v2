@@ -1,4 +1,4 @@
-import type { Visibility } from '../types/quizSet'
+import type { CreateQuizSetRequest, Visibility } from '../types/quizSet'
 
 export const QUIZ_SET_TITLE_MAX_LENGTH = 100
 export const QUIZ_SET_DESCRIPTION_MAX_LENGTH = 500
@@ -41,3 +41,19 @@ export const canSubmitQuizSetForm = (values: QuizSetFormValues): boolean =>
   validateQuizSetTitle(values.title) === null &&
   validateQuizSetDescription(values.description) === null &&
   values.categoryId !== null
+
+// 제출할 수 없는 값이면 null. 설명이 비어 있으면 null로 보낸다
+export const toCreateQuizSetRequest = (
+  values: QuizSetFormValues,
+  ownerId: number,
+): CreateQuizSetRequest | null => {
+  if (!canSubmitQuizSetForm(values) || values.categoryId === null) return null
+  const description = values.description.trim()
+  return {
+    ownerId,
+    title: values.title.trim(),
+    description: description === '' ? null : description,
+    visibility: values.visibility,
+    categoryId: values.categoryId,
+  }
+}

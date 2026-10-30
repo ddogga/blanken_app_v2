@@ -21,3 +21,12 @@ export type QuizSetResponse = {
   createdAt: string // ISO-8601 (서버 Instant)
   updatedAt: string
 }
+
+// POST /api/quiz-sets
+export type CreateQuizSetRequest = {
+  ownerId: number
+  title: string
+  description: string | null
+  visibility: Visibility
+  categoryId: number
+}

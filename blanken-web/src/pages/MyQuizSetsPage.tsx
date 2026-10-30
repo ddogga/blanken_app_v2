@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import EmptyQuizSets from '../components/EmptyQuizSets'
 import QuizSetCard from '../components/QuizSetCard'
 import QuizSetCreateModal from '../components/QuizSetCreateModal'
@@ -20,6 +21,7 @@ function MyQuizSetsPage() {
     isLoadMoreError,
   } = useMyQuizSets()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const navigate = useNavigate()
   const openCreate = () => setIsCreateOpen(true)
 
   return (
@@ -121,7 +123,11 @@ function MyQuizSetsPage() {
       </div>
 
       {isCreateOpen && (
-        <QuizSetCreateModal onClose={() => setIsCreateOpen(false)} />
+        <QuizSetCreateModal
+          onClose={() => setIsCreateOpen(false)}
+          // 퀴즈 없이 만들어졌으므로 바로 수정 화면에서 퀴즈를 추가한다
+          onCreated={(quizSet) => navigate(`/quiz-sets/${quizSet.id}/edit`)}
+        />
       )}
     </section>
   )

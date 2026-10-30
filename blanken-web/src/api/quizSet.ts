@@ -1,5 +1,9 @@
 import type { PageResponse } from '../types/common'
-import type { QuizSetOrder, QuizSetResponse } from '../types/quizSet'
+import type {
+  CreateQuizSetRequest,
+  QuizSetOrder,
+  QuizSetResponse,
+} from '../types/quizSet'
 import { apiClient } from './client'
 
 type GetUserQuizSetsParams = {
@@ -21,5 +25,13 @@ export const getUserQuizSets = async ({
     // orderEnum은 필수. 빠지면 400
     { params: { orderEnum: order, page, size } },
   )
+  return res.data
+}
+
+// POST /api/quiz-sets — 퀴즈 없이 퀴즈셋만 만든다(quizCount 0). 201 + 생성된 퀴즈셋
+export const createQuizSet = async (
+  request: CreateQuizSetRequest,
+): Promise<QuizSetResponse> => {
+  const res = await apiClient.post<QuizSetResponse>('/api/quiz-sets', request)
   return res.data
 }

@@ -3,6 +3,7 @@ import {
   EMPTY_QUIZ_SET_FORM,
   canSubmitQuizSetForm,
   getTrimmedLength,
+  toCreateQuizSetRequest,
   validateQuizSetDescription,
   validateQuizSetTitle,
   type QuizSetFormValues,
@@ -36,5 +37,6 @@ export function useQuizSetForm() {
     titleError: values.title === '' ? null : validateQuizSetTitle(values.title),
     descriptionError: validateQuizSetDescription(values.description),
     canSubmit: canSubmitQuizSetForm(values),
+    buildRequest: (ownerId: number) => toCreateQuizSetRequest(values, ownerId),
   }
 }
