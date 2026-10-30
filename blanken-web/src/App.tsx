@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage'
 import MyQuizSetsPage from './pages/MyQuizSetsPage'
 import QuizSetEditPage from './pages/QuizSetEditPage'
 import SignupPage from './pages/SignupPage'
+import StudyPage from './pages/StudyPage'
 
 function App() {
   const authStatus = useAuthBootstrap()
@@ -34,11 +35,9 @@ function App() {
             path="quiz-sets/:quizSetId/edit"
             element={<QuizSetEditPage />}
           />
-          <Route
-            path="quiz-sets/:quizSetId/study"
-            element={<ComingSoonPage title="학습하기" />}
-          />
         </Route>
+        {/* 학습 화면은 상단바·사이드바 없이 전체 화면 */}
+        <Route path="quiz-sets/:quizSetId/study" element={<StudyPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
