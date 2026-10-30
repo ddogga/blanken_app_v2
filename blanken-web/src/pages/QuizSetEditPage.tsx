@@ -17,18 +17,23 @@ import CircleCheckbox from '../components/CircleCheckbox'
 import SortableQuizItem from '../components/SortableQuizItem'
 import TrashIcon from '../components/TrashIcon'
 import { parseQuizSetId } from '../domain/quizSet'
+import { getDraftErrors, isDraftBlank, isDraftValid } from '../domain/quizDraft'
+import {
+  isQuizSetEdited,
+  toEditState,
+  toUpdateQuizSetRequest,
+} from '../domain/quizSetEdit'
 import {
   QUIZ_SET_DESCRIPTION_MAX_LENGTH,
   QUIZ_SET_TITLE_MAX_LENGTH,
-  fromQuizSetResponse,
 } from '../domain/quizSetForm'
 import { useCategories } from '../hooks/useCategories'
 import { useQuizDrafts } from '../hooks/useQuizDrafts'
 import { useQuizSetDetail } from '../hooks/useQuizSetDetail'
 import { useQuizSetForm } from '../hooks/useQuizSetForm'
+import { useUpdateQuizSet } from '../hooks/useUpdateQuizSet'
 import { showConfirm } from '../platform/dialog'
-import type { QuizResponse } from '../types/quiz'
-import type { QuizSetResponse } from '../types/quizSet'
+import type { QuizSetDetailResponse } from '../types/quizSet'
 
 function QuizSetEditPage() {
   const quizSetId = parseQuizSetId(useParams().quizSetId)
@@ -48,19 +53,39 @@ function QuizSetEditPage() {
 }
 
 function QuizSetEditor({ quizSetId }: { quizSetId: number }) {
-  const { quizSet, quizzes } = useQuizSetDetail(quizSetId)
-  return <QuizSetEditForm quizSet={quizSet} quizzes={quizzes} />
+  const { detail, dataUpdatedAt } = useQuizSetDetail(quizSetId)
+  const update = useUpdateQuizSet(quizSetId)
+  // 저장에 성공하면 응답으로 캐시가 바뀌고, key가 바뀌어 편집 상태를 응답으로 새로 만든다
+  return <QuizSetEditForm key={dataUpdatedAt} detail={detail} update={update} />
 }
 
 type FormProps = {
-  quizSet: QuizSetResponse
-  quizzes: QuizResponse[]
+  detail: QuizSetDetailResponse
+  update: ReturnType<typeof useUpdateQuizSet>
 }
 
-function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
-  const form = useQuizSetForm(fromQuizSetResponse(quizSet))
-  const quiz = useQuizDrafts(quizzes)
+function QuizSetEditForm({ detail, update }: FormProps) {
+  const quizSet = detail
+  const initial = toEditState(detail)
+  const form = useQuizSetForm(initial.values)
+  const quiz = useQuizDrafts(initial.drafts)
   const category = useCategories()
+
+  const edited = isQuizSetEdited(initial, {
+    values: form.values,
+    drafts: quiz.drafts,
+  })
+  const request = toUpdateQuizSetRequest(form.values, quiz.drafts)
+  const serverErrors = update.getInputErrors(request)
+  const canSave = edited && request !== null && !update.isPending
+  const invalidQuizNumbers = quiz.drafts
+    .map((draft, index) => (isDraftValid(draft) ? null : index + 1))
+    .filter((number) => number !== null)
+
+  const titleError = form.titleError ?? serverErrors?.fieldErrors.title
+  const descriptionError =
+    form.descriptionError ?? serverErrors?.fieldErrors.description
+  const categoryError = serverErrors?.fieldErrors.categoryId
 
   // 목록을 받기 전이거나 목록에 없어도 현재 카테고리는 보이게 한다
   const categoryOptions = category.categories.some(
@@ -113,14 +138,33 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
 
       <div className="mt-3 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">퀴즈셋 수정</h1>
-        <button
-          type="button"
-          disabled={!form.canSubmit}
-          className="h-10 shrink-0 rounded-xl bg-white px-5 text-sm font-semibold text-black transition-opacity active:opacity-80 disabled:bg-neutral-800 disabled:text-neutral-500"
-        >
-          저장
-        </button>
+        <div className="flex items-center gap-3">
+          <SaveStatus
+            edited={edited}
+            saved={update.isSuccess}
+            invalidQuizNumbers={invalidQuizNumbers}
+            invalidForm={request === null}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (request) update.save(request)
+            }}
+            disabled={!canSave}
+            className="h-10 shrink-0 rounded-xl bg-white px-5 text-sm font-semibold text-black transition-opacity active:opacity-80 disabled:bg-neutral-800 disabled:text-neutral-500"
+          >
+            {update.isPending ? '저장 중...' : '저장'}
+          </button>
+        </div>
       </div>
+
+      {serverErrors && serverErrors.formErrors.length > 0 && (
+        <ul className="mt-4 space-y-1 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {serverErrors.formErrors.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
 
       {/* 퀴즈셋 정보 */}
       <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -158,7 +202,9 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
               e.target.value === '' ? null : Number(e.target.value),
             )
           }
-          className="h-10 rounded-full border border-neutral-800 bg-neutral-900 px-4 text-base text-white outline-none focus:border-neutral-500 md:text-sm"
+          className={`h-10 rounded-full border bg-neutral-900 px-4 text-base text-white outline-none focus:border-neutral-500 md:text-sm ${
+            categoryError ? 'border-red-400' : 'border-neutral-800'
+          }`}
         >
           {categoryOptions.map((item) => (
             <option key={item.id} value={item.id}>
@@ -167,10 +213,13 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
           ))}
         </select>
       </div>
+      {categoryError && (
+        <p className="mt-2 text-xs text-red-400">{categoryError}</p>
+      )}
 
       <div
         className={`mt-4 rounded-xl border bg-neutral-900 px-4 pt-2 pb-3 focus-within:border-white ${
-          form.titleError ? 'border-red-400' : 'border-neutral-800'
+          titleError ? 'border-red-400' : 'border-neutral-800'
         }`}
       >
         <div className="flex justify-between text-xs text-neutral-500">
@@ -188,13 +237,11 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
           className="mt-1 w-full bg-transparent text-base outline-none"
         />
       </div>
-      {form.titleError && (
-        <p className="mt-2 text-xs text-red-400">{form.titleError}</p>
-      )}
+      {titleError && <p className="mt-2 text-xs text-red-400">{titleError}</p>}
 
       <div
         className={`mt-2 rounded-xl border bg-neutral-900 px-4 pt-2 pb-3 focus-within:border-white ${
-          form.descriptionError ? 'border-red-400' : 'border-neutral-800'
+          descriptionError ? 'border-red-400' : 'border-neutral-800'
         }`}
       >
         <div className="flex justify-between text-xs text-neutral-500">
@@ -211,8 +258,8 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
           className="mt-1 w-full resize-none bg-transparent text-base outline-none"
         />
       </div>
-      {form.descriptionError && (
-        <p className="mt-2 text-xs text-red-400">{form.descriptionError}</p>
+      {descriptionError && (
+        <p className="mt-2 text-xs text-red-400">{descriptionError}</p>
       )}
 
       {/* 퀴즈 목록 */}
@@ -266,6 +313,11 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
                   key={draft.key}
                   number={index + 1}
                   draft={draft}
+                  errors={{
+                    // 아무것도 입력하지 않은 새 퀴즈에는 안내를 띄우지 않는다
+                    ...(isDraftBlank(draft) ? {} : getDraftErrors(draft)),
+                    ...serverErrors?.quizErrors[index],
+                  }}
                   selected={quiz.selectedKeys.has(draft.key)}
                   onToggleSelect={() => quiz.toggleSelect(draft.key)}
                   onRemove={() => quiz.removeQuiz(draft.key)}
@@ -296,6 +348,35 @@ function QuizSetEditForm({ quizSet, quizzes }: FormProps) {
         </button>
       </div>
     </section>
+  )
+}
+
+type SaveStatusProps = {
+  edited: boolean
+  saved: boolean
+  invalidQuizNumbers: number[]
+  invalidForm: boolean
+}
+
+// 저장 버튼 옆 안내: 저장됨 / 확인이 필요한 퀴즈
+function SaveStatus({
+  edited,
+  saved,
+  invalidQuizNumbers,
+  invalidForm,
+}: SaveStatusProps) {
+  if (!edited) {
+    return saved ? (
+      <span className="text-sm text-neutral-400">저장했어요</span>
+    ) : null
+  }
+  if (!invalidForm) return null
+  return (
+    <span className="text-right text-sm text-amber-400">
+      {invalidQuizNumbers.length > 0
+        ? `${invalidQuizNumbers.join(', ')}번 퀴즈를 확인해 주세요`
+        : '입력을 확인해 주세요'}
+    </span>
   )
 }
 

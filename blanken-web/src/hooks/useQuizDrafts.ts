@@ -2,21 +2,16 @@ import { useRef, useState } from 'react'
 import {
   changeSentence,
   createEmptyDraft,
-  fromQuizResponse,
   moveDraft,
   toggleBlankAt,
   type QuizDraft,
 } from '../domain/quizDraft'
-import type { QuizResponse } from '../types/quiz'
 
-// 수정 화면의 퀴즈 목록 편집 상태. 서버 저장은 아직 하지 않는다
-// initialQuizzes는 처음 한 번만 쓴다
-export function useQuizDrafts(initialQuizzes: QuizResponse[]) {
-  // 저장된 퀴즈는 id로, 새로 추가한 퀴즈는 증가하는 번호로 key를 만든다
+// 수정 화면의 퀴즈 목록 편집 상태. initialDrafts는 처음 한 번만 쓴다
+export function useQuizDrafts(initialDrafts: QuizDraft[]) {
+  // 새로 추가한 퀴즈는 증가하는 번호로 key를 만든다 (저장된 퀴즈는 saved-{id})
   const nextKey = useRef(0)
-  const [drafts, setDrafts] = useState<QuizDraft[]>(() =>
-    initialQuizzes.map((quiz) => fromQuizResponse(`saved-${quiz.id}`, quiz)),
-  )
+  const [drafts, setDrafts] = useState<QuizDraft[]>(initialDrafts)
   const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   )

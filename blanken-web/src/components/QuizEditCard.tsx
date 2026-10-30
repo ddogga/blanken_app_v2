@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import TrashIcon from './TrashIcon'
 import {
   getDraftAnswers,
-  getDraftError,
   type QuizDraft,
+  type QuizDraftErrors,
 } from '../domain/quizDraft'
 import {
   getBlankIndexes,
@@ -15,6 +15,7 @@ import {
 type Props = {
   number: number
   draft: QuizDraft
+  errors: QuizDraftErrors
   selected: boolean
   onToggleSelect: () => void
   onRemove: () => void
@@ -28,6 +29,7 @@ type Props = {
 function QuizEditCard({
   number,
   draft,
+  errors,
   selected,
   onToggleSelect,
   onRemove,
@@ -44,7 +46,6 @@ function QuizEditCard({
     draft.blanks.length > 0 ? splitByBlanks(draft.sentence, draft.blanks) : null
   const translation = draft.translation.trim()
   const hint = draft.hint.trim()
-  const error = getDraftError(draft)
   const sentenceId = `quiz-${draft.key}-sentence`
   const translationId = `quiz-${draft.key}-translation`
   const answerId = `quiz-${draft.key}-answer`
@@ -130,6 +131,8 @@ function QuizEditCard({
         </>
       )}
 
+      <FieldError message={errors.sentence} />
+
       <label
         htmlFor={translationId}
         className="mt-4 block text-sm text-neutral-400"
@@ -145,6 +148,7 @@ function QuizEditCard({
         autoComplete="off"
         className="mt-2 h-12 w-full rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-base outline-none placeholder:text-neutral-600 focus:border-white"
       />
+      <FieldError message={errors.translation} />
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div>
@@ -174,12 +178,9 @@ function QuizEditCard({
             autoComplete="off"
             className="mt-2 h-12 w-full rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-base outline-none placeholder:text-neutral-600 focus:border-white"
           />
+          <FieldError message={errors.hint} />
         </div>
       </div>
-
-      {error && draft.sentence.trim() !== '' && (
-        <p className="mt-3 text-xs text-amber-400">{error}</p>
-      )}
 
       {preview && (
         <div className="mt-4 rounded-xl bg-neutral-900 px-4 py-3">
@@ -206,6 +207,12 @@ function QuizEditCard({
       )}
     </article>
   )
+}
+
+function FieldError({ message }: { message: string | undefined }) {
+  return message ? (
+    <p className="mt-2 text-xs text-amber-400">{message}</p>
+  ) : null
 }
 
 export default QuizEditCard

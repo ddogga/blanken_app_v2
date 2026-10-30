@@ -14,6 +14,9 @@ export type QuizSetFormValues = {
   categoryId: number | null
 }
 
+// 서버 에러를 표시할 수 있는 입력 필드
+export type QuizSetFormField = 'title' | 'description' | 'categoryId'
+
 export const EMPTY_QUIZ_SET_FORM: QuizSetFormValues = {
   title: '',
   description: '',

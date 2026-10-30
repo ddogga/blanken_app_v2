@@ -1,7 +1,5 @@
 import type { ErrorResponse } from '../types/error'
-
-// 입력 폼에서 서버 에러를 보여줄 수 있는 필드
-export type QuizSetFormField = 'title' | 'description' | 'categoryId'
+import type { QuizSetFormField } from './quizSetForm'
 
 export type QuizSetCreateFailure =
   // 400 / 409(같은 제목) / 404(카테고리 없음): 모달 안에 표시

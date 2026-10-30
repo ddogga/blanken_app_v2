@@ -1,8 +1,9 @@
-import type { QuizResponse } from '../types/quiz'
+import type { QuizRequest, QuizResponse } from '../types/quiz'
 import {
   fromBlankedSentence,
   getAnswers,
   resolveBlanks,
+  toBlankedSentence,
   toggleBlank,
   type Blank,
 } from './quizSentence'
@@ -59,11 +60,70 @@ export const toggleBlankAt = (
 export const getDraftAnswers = (draft: QuizDraft): string[] =>
   getAnswers(draft.sentence, draft.blanks)
 
-export const getDraftError = (draft: QuizDraft): string | null => {
-  if (draft.sentence.trim() === '') return '문장을 입력해 주세요.'
-  if (draft.blanks.length === 0) return '빈칸으로 만들 단어를 선택해 주세요.'
-  if (draft.translation.trim() === '') return '번역 문장을 입력해 주세요.'
-  return null
+export const QUIZ_SENTENCE_MAX_LENGTH = 500
+export const QUIZ_TRANSLATION_MAX_LENGTH = 500
+export const QUIZ_HINT_MAX_LENGTH = 200
+
+export type QuizDraftField = 'sentence' | 'translation' | 'hint'
+export type QuizDraftErrors = Partial<Record<QuizDraftField, string>>
+
+// 서버 규칙을 미리 검사한다. 정답 규칙 위반은 서버가 500으로 응답하므로 보내기 전에 막아야 한다
+export const getDraftErrors = (draft: QuizDraft): QuizDraftErrors => {
+  const errors: QuizDraftErrors = {}
+  const sentence = draft.sentence.trim()
+  const blankedSentence = toBlankedSentence(sentence, draft.blanks)
+  const answers = getDraftAnswers(draft)
+  // 서버는 {{}}가 들어간 문장을 공백으로 나눠 단어 수를 센다
+  const wordCount = blankedSentence.split(/\s+/).filter(Boolean).length
+
+  if (sentence === '') errors.sentence = '문장을 입력해 주세요.'
+  else if (/[{}]/.test(sentence)) {
+    errors.sentence = '문장에 중괄호({ })는 쓸 수 없어요.'
+  } else if (blankedSentence.length > QUIZ_SENTENCE_MAX_LENGTH) {
+    errors.sentence = `문장은 ${QUIZ_SENTENCE_MAX_LENGTH}자 이내로 입력해 주세요.`
+  } else if (answers.length === 0) {
+    errors.sentence = '빈칸으로 만들 단어를 선택해 주세요.'
+  } else if (answers.some((answer) => /\s/.test(answer))) {
+    errors.sentence = '정답에는 공백이 들어갈 수 없어요.'
+  } else if (answers.length >= wordCount) {
+    errors.sentence = '빈칸 수는 문장의 단어 수보다 적어야 해요.'
+  }
+
+  const translation = draft.translation.trim()
+  if (translation === '') errors.translation = '번역 문장을 입력해 주세요.'
+  else if (translation.length > QUIZ_TRANSLATION_MAX_LENGTH) {
+    errors.translation = `번역 문장은 ${QUIZ_TRANSLATION_MAX_LENGTH}자 이내로 입력해 주세요.`
+  }
+
+  if (draft.hint.trim().length > QUIZ_HINT_MAX_LENGTH) {
+    errors.hint = `힌트는 ${QUIZ_HINT_MAX_LENGTH}자 이내로 입력해 주세요.`
+  }
+  return errors
+}
+
+// 새로 추가하고 아무것도 입력하지 않은 퀴즈. 에러 문구를 띄우지 않는다
+export const isDraftBlank = (draft: QuizDraft): boolean =>
+  draft.sentence.trim() === '' &&
+  draft.translation.trim() === '' &&
+  draft.hint.trim() === ''
+
+export const isDraftValid = (draft: QuizDraft): boolean =>
+  Object.keys(getDraftErrors(draft)).length === 0
+
+// 검사를 통과한 퀴즈만 넘긴다. orderIndex는 화면 순서
+export const toQuizRequest = (
+  draft: QuizDraft,
+  orderIndex: number,
+): QuizRequest => {
+  const hint = draft.hint.trim()
+  return {
+    id: draft.id,
+    sentence: toBlankedSentence(draft.sentence.trim(), draft.blanks),
+    answers: getDraftAnswers(draft),
+    hint: hint === '' ? null : hint,
+    orderIndex,
+    translation: draft.translation.trim(),
+  }
 }
 
 // from 위치의 퀴즈를 to 위치로 옮긴다. 범위를 벗어나면 그대로 둔다

@@ -1,8 +1,10 @@
 import type { PageResponse } from '../types/common'
 import type {
   CreateQuizSetRequest,
+  QuizSetDetailResponse,
   QuizSetOrder,
   QuizSetResponse,
+  UpdateQuizSetRequest,
 } from '../types/quizSet'
 import { apiClient } from './client'
 
@@ -33,5 +35,17 @@ export const createQuizSet = async (
   request: CreateQuizSetRequest,
 ): Promise<QuizSetResponse> => {
   const res = await apiClient.post<QuizSetResponse>('/api/quiz-sets', request)
+  return res.data
+}
+
+// PUT /api/quiz-sets/{quizSetId} — 퀴즈셋 정보와 퀴즈 전체를 교체한다
+export const updateQuizSet = async (
+  quizSetId: number,
+  request: UpdateQuizSetRequest,
+): Promise<QuizSetDetailResponse> => {
+  const res = await apiClient.put<QuizSetDetailResponse>(
+    `/api/quiz-sets/${quizSetId}`,
+    request,
+  )
   return res.data
 }
