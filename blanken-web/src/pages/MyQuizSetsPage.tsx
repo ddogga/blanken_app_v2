@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import EmptyQuizSets from '../components/EmptyQuizSets'
 import QuizSetCard from '../components/QuizSetCard'
 import QuizSetCreateModal from '../components/QuizSetCreateModal'
@@ -96,7 +96,12 @@ function MyQuizSetsPage() {
             <ul className="grid gap-4 md:grid-cols-2">
               {quizSets.map((quizSet) => (
                 <li key={quizSet.id}>
-                  <QuizSetCard quizSet={quizSet} />
+                  <Link
+                    to={`/quiz-sets/${quizSet.id}/edit`}
+                    className="block h-full rounded-2xl transition-opacity active:opacity-80"
+                  >
+                    <QuizSetCard quizSet={quizSet} />
+                  </Link>
                 </li>
               ))}
             </ul>

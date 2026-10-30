@@ -1,52 +1,46 @@
 import { useQuery } from '@tanstack/react-query'
-import type { QuizSetDetailResponse } from '../types/quizSet'
+import { toApiError } from '../api/error'
+import { getQuizSet } from '../api/quizSet'
 
 export const quizSetDetailKey = (quizSetId: number) =>
   ['quizSets', 'detail', quizSetId] as const
 
-// TODO: 퀴즈셋 상세 조회 API가 생기면 queryFn을 API 호출로 바꾸고 initialData를 지운다.
-// 지금은 화면 확인용 샘플 데이터. 저장에 성공하면 응답으로 이 캐시를 덮어쓴다
-const createSample = (quizSetId: number): QuizSetDetailResponse => ({
-  id: quizSetId,
-  ownerId: 1,
-  ownerNickname: null,
-  title: '비즈니스 이메일 표현',
-  description: '업무 메일에서 자주 쓰는 문장 모음',
-  visibility: 'PUBLIC',
-  likeCount: 0,
-  quizCount: 2,
-  category: { id: 1, name: '비즈니스' },
-  createdAt: '2026-10-29T00:00:00Z',
-  updatedAt: '2026-10-29T00:00:00Z',
-  quizzes: [
-    {
-      id: 1,
-      quizSetId,
-      sentence: 'She decided to {{}} the {{}} until next week.',
-      answers: ['postpone', 'meeting'],
-      hint: '미루다, 연기하다',
-      orderIndex: 0,
-      translation: '그녀는 회의를 다음 주로 미루기로 했다.',
-    },
-    {
-      id: 2,
-      quizSetId,
-      sentence: "I'm {{}} forward to hearing from you.",
-      answers: ['looking'],
-      hint: null,
-      orderIndex: 1,
-      translation: '연락 기다리겠습니다.',
-    },
-  ],
-})
+const LOAD_ERROR_MESSAGE = '퀴즈셋을 불러오지 못했어요.'
 
-// dataUpdatedAt: 캐시가 바뀐 시각. 저장 성공으로 응답이 들어오면 바뀐다
+// 수정 화면용 퀴즈셋 상세.
+// 편집 중에 다시 받아오면 입력하던 내용이 응답으로 덮이므로, 화면에 들어올 때 한 번만 받는다.
+// (창 포커스·재연결 시 다시 받지 않고, 화면을 떠나면 캐시를 버려 다음에 들어올 때 새로 받는다)
+// 저장에 성공하면 useUpdateQuizSet이 응답으로 이 캐시를 덮어쓴다.
 export function useQuizSetDetail(quizSetId: number) {
   const query = useQuery({
     queryKey: quizSetDetailKey(quizSetId),
-    queryFn: () => createSample(quizSetId),
-    initialData: () => createSample(quizSetId),
-    staleTime: Infinity,
+    queryFn: () => getQuizSet(quizSetId),
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    // 404·403처럼 다시 보내도 같은 결과인 응답은 재시도하지 않는다
+    retry: (failureCount, error) => {
+      const { status } = toApiError(error)
+      return (status === null || status >= 500) && failureCount < 2
+    },
   })
-  return { detail: query.data, dataUpdatedAt: query.dataUpdatedAt }
+
+  const { status, body } = toApiError(query.error)
+  // 404 Q001(없음)·403 Q005(남의 비공개)는 서버 메시지를 그대로 보여준다
+  const errorMessage =
+    (status === 404 || status === 403) && body
+      ? body.message
+      : LOAD_ERROR_MESSAGE
+
+  return {
+    detail: query.data,
+    // 캐시가 바뀐 시각. 처음 받거나 저장 응답으로 덮이면 바뀐다
+    dataUpdatedAt: query.dataUpdatedAt,
+    isLoading: query.isPending,
+    isError: query.isError,
+    // 다시 시도해도 결과가 같은 에러인지 (재시도 버튼을 숨길지)
+    isPermanentError: status === 404 || status === 403,
+    errorMessage,
+    retry: () => void query.refetch(),
+  }
 }

@@ -53,8 +53,44 @@ function QuizSetEditPage() {
 }
 
 function QuizSetEditor({ quizSetId }: { quizSetId: number }) {
-  const { detail, dataUpdatedAt } = useQuizSetDetail(quizSetId)
+  const {
+    detail,
+    dataUpdatedAt,
+    isLoading,
+    isError,
+    isPermanentError,
+    errorMessage,
+    retry,
+  } = useQuizSetDetail(quizSetId)
   const update = useUpdateQuizSet(quizSetId)
+
+  if (isLoading) {
+    return <p className="py-16 text-center text-neutral-500">불러오는 중...</p>
+  }
+  if (isError || !detail) {
+    return (
+      <section className="mx-auto flex max-w-5xl flex-col items-center py-16 text-neutral-500">
+        <p>{errorMessage}</p>
+        <div className="mt-4 flex gap-2">
+          {!isPermanentError && (
+            <button
+              type="button"
+              onClick={retry}
+              className="h-10 rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900"
+            >
+              다시 시도
+            </button>
+          )}
+          <Link
+            to="/"
+            className="flex h-10 items-center rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900"
+          >
+            내 퀴즈셋으로
+          </Link>
+        </div>
+      </section>
+    )
+  }
   // 저장에 성공하면 응답으로 캐시가 바뀌고, key가 바뀌어 편집 상태를 응답으로 새로 만든다
   return <QuizSetEditForm key={dataUpdatedAt} detail={detail} update={update} />
 }

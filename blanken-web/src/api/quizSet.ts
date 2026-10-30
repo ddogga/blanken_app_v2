@@ -49,3 +49,13 @@ export const updateQuizSet = async (
   )
   return res.data
 }
+
+// GET /api/quiz-sets/{quizSetId} — 퀴즈 목록(orderIndex 순)을 포함한 퀴즈셋
+export const getQuizSet = async (
+  quizSetId: number,
+): Promise<QuizSetDetailResponse> => {
+  const res = await apiClient.get<QuizSetDetailResponse>(
+    `/api/quiz-sets/${quizSetId}`,
+  )
+  return res.data
+}
