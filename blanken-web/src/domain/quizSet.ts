@@ -39,3 +39,10 @@ export const mergeQuizSetPages = (
 // 퀴즈가 하나도 없으면 학습할 수 없다 (2단계 생성 플로우에서 생성 직후 상태)
 export const canStudyQuizSet = (quizSet: QuizSetResponse): boolean =>
   quizSet.quizCount > 0
+
+// URL의 :quizSetId. 양의 정수가 아니면 null
+export const parseQuizSetId = (value: string | undefined): number | null => {
+  if (value === undefined || !/^[1-9]\d*$/.test(value)) return null
+  const id = Number(value)
+  return Number.isSafeInteger(id) ? id : null
+}

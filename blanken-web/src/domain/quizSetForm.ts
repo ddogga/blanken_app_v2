@@ -1,4 +1,8 @@
-import type { CreateQuizSetRequest, Visibility } from '../types/quizSet'
+import type {
+  CreateQuizSetRequest,
+  QuizSetResponse,
+  Visibility,
+} from '../types/quizSet'
 
 export const QUIZ_SET_TITLE_MAX_LENGTH = 100
 export const QUIZ_SET_DESCRIPTION_MAX_LENGTH = 500
@@ -16,6 +20,16 @@ export const EMPTY_QUIZ_SET_FORM: QuizSetFormValues = {
   visibility: 'PUBLIC',
   categoryId: null,
 }
+
+// 수정 화면: 기존 퀴즈셋 정보로 채운다
+export const fromQuizSetResponse = (
+  quizSet: QuizSetResponse,
+): QuizSetFormValues => ({
+  title: quizSet.title,
+  description: quizSet.description ?? '',
+  visibility: quizSet.visibility,
+  categoryId: quizSet.category.id,
+})
 
 // 앞뒤 공백을 뺀 길이 기준
 export const getTrimmedLength = (value: string): number => value.trim().length

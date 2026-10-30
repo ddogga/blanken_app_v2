@@ -9,8 +9,11 @@ import {
   type QuizSetFormValues,
 } from '../domain/quizSetForm'
 
-export function useQuizSetForm() {
-  const [values, setValues] = useState<QuizSetFormValues>(EMPTY_QUIZ_SET_FORM)
+// initialValues는 처음 한 번만 쓴다 (수정 화면에서 기존 값으로 채울 때)
+export function useQuizSetForm(
+  initialValues: QuizSetFormValues = EMPTY_QUIZ_SET_FORM,
+) {
+  const [values, setValues] = useState<QuizSetFormValues>(initialValues)
 
   const setField = <K extends keyof QuizSetFormValues>(
     key: K,

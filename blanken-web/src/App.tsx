@@ -7,6 +7,7 @@ import { useAuthBootstrap } from './hooks/useAuthBootstrap'
 import ComingSoonPage from './pages/ComingSoonPage'
 import LoginPage from './pages/LoginPage'
 import MyQuizSetsPage from './pages/MyQuizSetsPage'
+import QuizSetEditPage from './pages/QuizSetEditPage'
 import SignupPage from './pages/SignupPage'
 
 function App() {
@@ -31,7 +32,7 @@ function App() {
           <Route path="social" element={<ComingSoonPage title="소셜" />} />
           <Route
             path="quiz-sets/:quizSetId/edit"
-            element={<ComingSoonPage title="퀴즈셋 수정" />}
+            element={<QuizSetEditPage />}
           />
         </Route>
       </Route>
