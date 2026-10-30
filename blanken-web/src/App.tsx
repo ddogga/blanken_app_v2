@@ -34,6 +34,10 @@ function App() {
             path="quiz-sets/:quizSetId/edit"
             element={<QuizSetEditPage />}
           />
+          <Route
+            path="quiz-sets/:quizSetId/study"
+            element={<ComingSoonPage title="학습하기" />}
+          />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

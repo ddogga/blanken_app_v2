@@ -12,11 +12,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import CircleCheckbox from '../components/CircleCheckbox'
 import SortableQuizItem from '../components/SortableQuizItem'
 import TrashIcon from '../components/TrashIcon'
-import { parseQuizSetId } from '../domain/quizSet'
+import { canStudyQuizSet, parseQuizSetId } from '../domain/quizSet'
 import { getDraftErrors, isDraftBlank, isDraftValid } from '../domain/quizDraft'
 import {
   isQuizSetEdited,
@@ -123,6 +123,10 @@ function QuizSetEditForm({ detail, update }: FormProps) {
     form.descriptionError ?? serverErrors?.fieldErrors.description
   const categoryError = serverErrors?.fieldErrors.categoryId
 
+  const navigate = useNavigate()
+  // 저장된 상태로만 학습한다. 저장 안 된 변경이 있거나 저장된 퀴즈가 없으면 막는다
+  const canStudy = !edited && !update.isPending && canStudyQuizSet(detail)
+
   // 목록을 받기 전이거나 목록에 없어도 현재 카테고리는 보이게 한다
   const categoryOptions = category.categories.some(
     (item) => item.id === quizSet.category.id,
@@ -172,15 +176,23 @@ function QuizSetEditForm({ detail, update }: FormProps) {
         내 퀴즈셋
       </Link>
 
-      <div className="mt-3 flex items-center justify-between gap-4">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <h1 className="text-2xl font-bold">퀴즈셋 수정</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <SaveStatus
             edited={edited}
             saved={update.isSuccess}
             invalidQuizNumbers={invalidQuizNumbers}
             invalidForm={request === null}
           />
+          <button
+            type="button"
+            onClick={() => navigate(`/quiz-sets/${detail.id}/study`)}
+            disabled={!canStudy}
+            className="h-10 shrink-0 rounded-xl border border-neutral-700 px-5 text-sm font-semibold text-white transition-colors active:bg-neutral-900 disabled:border-neutral-800 disabled:text-neutral-600"
+          >
+            학습하기
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -394,7 +406,7 @@ type SaveStatusProps = {
   invalidForm: boolean
 }
 
-// 저장 버튼 옆 안내: 저장됨 / 확인이 필요한 퀴즈
+// 저장 버튼 옆 안내: 저장됨 / 저장 안 된 변경 / 확인이 필요한 퀴즈
 function SaveStatus({
   edited,
   saved,
@@ -406,7 +418,13 @@ function SaveStatus({
       <span className="text-sm text-neutral-400">저장했어요</span>
     ) : null
   }
-  if (!invalidForm) return null
+  if (!invalidForm) {
+    return (
+      <span className="text-right text-sm text-neutral-400">
+        저장 후 학습할 수 있어요
+      </span>
+    )
+  }
   return (
     <span className="text-right text-sm text-amber-400">
       {invalidQuizNumbers.length > 0
