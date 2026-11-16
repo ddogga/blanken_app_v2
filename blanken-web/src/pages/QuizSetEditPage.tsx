@@ -124,7 +124,7 @@ function QuizSetEditForm({ detail, update }: FormProps) {
   const categoryError = serverErrors?.fieldErrors.categoryId
 
   const navigate = useNavigate()
-  // 저장된 상태로만 학습한다. 저장 안 된 변경이 있거나 저장된 퀴즈가 없으면 막는다
+  // 저장된 상태로만 학습한다. 저장 안 된 변경이 있거나 저장된 퀴즈가 5개 미만이면 막는다
   const canStudy = !edited && !update.isPending && canStudyQuizSet(detail)
 
   // 목록을 받기 전이거나 목록에 없어도 현재 카테고리는 보이게 한다

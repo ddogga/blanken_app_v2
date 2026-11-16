@@ -36,9 +36,15 @@ export const mergeQuizSetPages = (
   return merged
 }
 
-// 퀴즈가 하나도 없으면 학습할 수 없다 (2단계 생성 플로우에서 생성 직후 상태)
-export const canStudyQuizSet = (quizSet: QuizSetResponse): boolean =>
+// 퀴즈가 하나도 없는 퀴즈셋인지 (2단계 생성 플로우에서 생성 직후 상태)
+export const hasQuizzes = (quizSet: QuizSetResponse): boolean =>
   quizSet.quizCount > 0
+
+// 서버는 퀴즈가 이 개수보다 적은 퀴즈셋의 학습 세션을 만들지 않는다 (400 Q007)
+export const MIN_STUDY_QUIZ_COUNT = 5
+
+export const canStudyQuizSet = (quizSet: QuizSetResponse): boolean =>
+  quizSet.quizCount >= MIN_STUDY_QUIZ_COUNT
 
 // URL의 :quizSetId. 양의 정수가 아니면 null
 export const parseQuizSetId = (value: string | undefined): number | null => {
