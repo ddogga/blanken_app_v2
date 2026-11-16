@@ -12,9 +12,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import CircleCheckbox from '../components/CircleCheckbox'
 import SortableQuizItem from '../components/SortableQuizItem'
+import StudyResumeDialog from '../components/StudyResumeDialog'
 import TrashIcon from '../components/TrashIcon'
 import { canStudyQuizSet, parseQuizSetId } from '../domain/quizSet'
 import { getDraftErrors, isDraftBlank, isDraftValid } from '../domain/quizDraft'
@@ -27,13 +29,16 @@ import {
   QUIZ_SET_DESCRIPTION_MAX_LENGTH,
   QUIZ_SET_TITLE_MAX_LENGTH,
 } from '../domain/quizSetForm'
+import { needsResumeConfirm } from '../domain/study'
 import { useCategories } from '../hooks/useCategories'
 import { useQuizDrafts } from '../hooks/useQuizDrafts'
 import { useQuizSetDetail } from '../hooks/useQuizSetDetail'
 import { useQuizSetForm } from '../hooks/useQuizSetForm'
+import { useStartStudySession } from '../hooks/useStartStudySession'
 import { useUpdateQuizSet } from '../hooks/useUpdateQuizSet'
 import { showConfirm } from '../platform/dialog'
 import type { QuizSetDetailResponse } from '../types/quizSet'
+import type { StudySessionResponse } from '../types/study'
 
 function QuizSetEditPage() {
   const quizSetId = parseQuizSetId(useParams().quizSetId)
@@ -127,6 +132,23 @@ function QuizSetEditForm({ detail, update }: FormProps) {
   // 저장된 상태로만 학습한다. 저장 안 된 변경이 있거나 저장된 퀴즈가 5개 미만이면 막는다
   const canStudy = !edited && !update.isPending && canStudyQuizSet(detail)
 
+  // 이어서 풀지 물어볼 진행 중인 세션. 있으면 확인창을 띄운다
+  const [resumable, setResumable] = useState<StudySessionResponse | null>(null)
+  const goStudy = () => navigate(`/quiz-sets/${detail.id}/study`)
+  const study = useStartStudySession(detail.id, {
+    onStarted: (session) => {
+      if (needsResumeConfirm(session)) {
+        setResumable(session)
+        return
+      }
+      // 새 세션, 한 문제도 안 푼 세션, 다 푼 세션(결과 화면)은 묻지 않고 바로 간다
+      setResumable(null)
+      goStudy()
+    },
+    onNotFound: () => navigate('/', { replace: true }),
+    onSignupRequired: () => navigate('/signup', { replace: true }),
+  })
+
   // 목록을 받기 전이거나 목록에 없어도 현재 카테고리는 보이게 한다
   const categoryOptions = category.categories.some(
     (item) => item.id === quizSet.category.id,
@@ -187,11 +209,11 @@ function QuizSetEditForm({ detail, update }: FormProps) {
           />
           <button
             type="button"
-            onClick={() => navigate(`/quiz-sets/${detail.id}/study`)}
-            disabled={!canStudy}
+            onClick={study.start}
+            disabled={!canStudy || study.isPending}
             className="h-10 shrink-0 rounded-xl border border-neutral-700 px-5 text-sm font-semibold text-white transition-colors active:bg-neutral-900 disabled:border-neutral-800 disabled:text-neutral-600"
           >
-            학습하기
+            {study.isPending && !resumable ? '시작 중...' : '학습하기'}
           </button>
           <button
             type="button"
@@ -395,6 +417,18 @@ function QuizSetEditForm({ detail, update }: FormProps) {
           + 퀴즈 추가하기
         </button>
       </div>
+
+      {resumable && (
+        <StudyResumeDialog
+          solvedCount={resumable.nextQuizIndex}
+          total={resumable.quizzes.length}
+          isRestarting={study.isPending}
+          // 받은 세션이 캐시에 있으므로 그대로 이동하면 이어서 푼다
+          onResume={goStudy}
+          onRestart={study.restart}
+          onClose={() => setResumable(null)}
+        />
+      )}
     </section>
   )
 }

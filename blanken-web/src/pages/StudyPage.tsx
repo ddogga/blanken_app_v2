@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { useRef } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { parseQuizSetId } from '../domain/quizSet'
 import { countCorrect, parseBlankedSentence } from '../domain/study'
-import { useStudyQuizzes } from '../hooks/useStudyQuizzes'
+import { useStartStudySession } from '../hooks/useStartStudySession'
 import { useStudySession } from '../hooks/useStudySession'
+import { useStudySessionQuery } from '../hooks/useStudySessionQuery'
+import type { StudySessionResponse } from '../types/study'
 
 // 학습 화면. 상단바·사이드바 없이 전체 화면으로 보여준다
 function StudyPage() {
@@ -37,8 +39,55 @@ function StudySession({
   quizSetId: number
   onExit: () => void
 }) {
-  const { quizzes } = useStudyQuizzes(quizSetId)
-  const session = useStudySession(quizzes)
+  const navigate = useNavigate()
+  const { session, isLoading, failure } = useStudySessionQuery(quizSetId)
+  // 결과 화면의 '다시 학습하기'. 새 세션이 캐시에 들어가면 아래 key가 바뀌어 처음부터 그린다
+  const restart = useStartStudySession(quizSetId, {
+    onNotFound: onExit,
+    onSignupRequired: () => navigate('/signup', { replace: true }),
+  })
+
+  if (failure?.type === 'signupRequired') {
+    return <Navigate to="/signup" replace />
+  }
+  if (failure?.type === 'notFound' || failure?.type === 'alert') {
+    return (
+      <StudyShell onExit={onExit} progress={0} label="">
+        <p className="py-16 text-center text-neutral-500">{failure.message}</p>
+      </StudyShell>
+    )
+  }
+  // 401은 인터셉터가 토큰을 지우면 로그인 가드가 /login으로 보낸다. 그때까지 로딩으로 둔다
+  if (isLoading || !session) {
+    return (
+      <StudyShell onExit={onExit} progress={0} label="">
+        <p className="py-16 text-center text-neutral-500">불러오는 중...</p>
+      </StudyShell>
+    )
+  }
+  return (
+    <StudyPlay
+      key={session.sessionId}
+      studySession={session}
+      onExit={onExit}
+      onRestart={restart.restart}
+      isRestarting={restart.isPending}
+    />
+  )
+}
+
+function StudyPlay({
+  studySession,
+  onExit,
+  onRestart,
+  isRestarting,
+}: {
+  studySession: StudySessionResponse
+  onExit: () => void
+  onRestart: () => void
+  isRestarting: boolean
+}) {
+  const session = useStudySession(studySession)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   if (session.total === 0) {
@@ -69,10 +118,11 @@ function StudySession({
           <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
             <button
               type="button"
-              onClick={session.restart}
-              className="h-12 rounded-xl bg-white font-semibold text-black transition-opacity active:opacity-80"
+              onClick={onRestart}
+              disabled={isRestarting}
+              className="h-12 rounded-xl bg-white font-semibold text-black transition-opacity active:opacity-80 disabled:opacity-50"
             >
-              다시 학습하기
+              {isRestarting ? '준비 중...' : '다시 학습하기'}
             </button>
             <button
               type="button"
@@ -214,7 +264,9 @@ function StudySession({
           })}
         </p>
 
-        <p className="mt-6 text-neutral-400">{quiz.translation}</p>
+        {quiz.translation && (
+          <p className="mt-6 text-neutral-400">{quiz.translation}</p>
+        )}
 
         {session.showHint && quiz.hint && (
           <p className="mt-4 rounded-xl bg-neutral-900 px-4 py-3 text-sm text-neutral-300">

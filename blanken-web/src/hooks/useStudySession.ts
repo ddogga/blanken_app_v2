@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { isAnswerCorrect, type QuizResult } from '../domain/study'
-import type { QuizResponse } from '../types/quiz'
+import { isAnswerCorrect } from '../domain/study'
+import type {
+  QuizSnapshot,
+  StudyResult,
+  StudySessionResponse,
+} from '../types/study'
 
 // 지금 풀고 있는 문제 하나의 상태
 type QuizState = {
@@ -10,23 +14,29 @@ type QuizState = {
   showHint: boolean
 }
 
-const createQuizState = (quiz: QuizResponse | undefined): QuizState => ({
+const createQuizState = (quiz: QuizSnapshot | undefined): QuizState => ({
   inputs: quiz?.answers.map(() => '') ?? [],
   wrong: quiz?.answers.map(() => false) ?? [],
   gaveUp: false,
   showHint: false,
 })
 
-// 퀴즈 풀이 세션. 채점은 클라이언트에서 실시간으로 한다.
-// 틀려도 무제한 다시 입력할 수 있고, 포기해야만 오답으로 기록한다
-export function useStudySession(quizzes: QuizResponse[]) {
-  const [index, setIndex] = useState(0)
-  const [results, setResults] = useState<QuizResult[]>([])
+// 퀴즈 풀이 진행. 채점은 클라이언트에서 실시간으로 한다.
+// 틀려도 무제한 다시 입력할 수 있고, 포기해야만 오답으로 기록한다.
+// 서버 세션의 진행 위치(nextQuizIndex)와 이미 푼 결과(results)에서 이어서 시작한다.
+// 처음 마운트될 때의 세션만 쓰므로, 세션이 바뀌면 key로 다시 마운트해야 한다
+export function useStudySession(session: StudySessionResponse) {
+  const { quizzes } = session
+  const [index, setIndex] = useState(session.nextQuizIndex)
+  // 키는 quizId 문자열. 서버 응답 results와 같은 모양
+  const [results, setResults] = useState<Record<string, StudyResult>>(
+    session.results,
+  )
   const [state, setState] = useState<QuizState>(() =>
-    createQuizState(quizzes[0]),
+    createQuizState(quizzes[session.nextQuizIndex]),
   )
 
-  const quiz = quizzes[index] as QuizResponse | undefined
+  const quiz = quizzes[index] as QuizSnapshot | undefined
   const answers = quiz?.answers ?? []
   const solved = answers.map((answer, i) =>
     isAnswerCorrect(state.inputs[i] ?? '', answer),
@@ -82,14 +92,12 @@ export function useStudySession(quizzes: QuizResponse[]) {
     giveUp: () => {
       if (!isQuizDone) setState((prev) => ({ ...prev, gaveUp: true }))
     },
+    // TODO: 결과 저장 API가 생기면 여기서 이 문제의 결과를 서버 세션에 저장한다
     next: () => {
-      if (!isQuizDone) return
-      setResults((prev) => [...prev, state.gaveUp ? 'wrong' : 'correct'])
+      if (!isQuizDone || !quiz) return
+      const result: StudyResult = state.gaveUp ? 'GAVE_UP' : 'CORRECT'
+      setResults((prev) => ({ ...prev, [String(quiz.quizId)]: result }))
       goTo(index + 1)
-    },
-    restart: () => {
-      setResults([])
-      goTo(0)
     },
   }
 }

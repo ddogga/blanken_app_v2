@@ -1,3 +1,4 @@
+import type { StudyResult, StudySessionResponse } from '../types/study'
 import { BLANK_PLACEHOLDER } from './quizSentence'
 
 export type StudyPart =
@@ -17,7 +18,12 @@ export const parseBlankedSentence = (sentence: string): StudyPart[] => {
 export const isAnswerCorrect = (input: string, answer: string): boolean =>
   input.trim() === answer
 
-export type QuizResult = 'correct' | 'wrong'
+export const countCorrect = (results: Record<string, StudyResult>): number =>
+  Object.values(results).filter((result) => result === 'CORRECT').length
 
-export const countCorrect = (results: QuizResult[]): number =>
-  results.filter((result) => result === 'correct').length
+// 이어풀기 세션을 이어서 풀지 물어봐야 하는지.
+// 한 문제도 안 풀었으면 처음부터 풀면 되고, 다 풀었으면 결과 화면으로 바로 간다
+export const needsResumeConfirm = (session: StudySessionResponse): boolean =>
+  session.resumed &&
+  Object.keys(session.results).length > 0 &&
+  session.nextQuizIndex < session.quizzes.length
