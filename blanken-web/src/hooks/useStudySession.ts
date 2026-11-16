@@ -35,6 +35,14 @@ export function useStudySession(session: StudySessionResponse) {
   const [state, setState] = useState<QuizState>(() =>
     createQuizState(quizzes[session.nextQuizIndex]),
   )
+  // 이전 문제를 보는 중이면 그 문제의 번호. 지금 푸는 문제를 보고 있으면 null.
+  // 이전 문제를 보는 동안에도 지금 문제의 입력 상태(state)는 그대로 남는다
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null)
+  const viewIndex = reviewIndex ?? index
+  const reviewQuiz =
+    reviewIndex === null
+      ? undefined
+      : (quizzes[reviewIndex] as QuizSnapshot | undefined)
 
   const quiz = quizzes[index] as QuizSnapshot | undefined
   const answers = quiz?.answers ?? []
@@ -67,6 +75,7 @@ export function useStudySession(session: StudySessionResponse) {
   const goTo = (nextIndex: number) => {
     setIndex(nextIndex)
     setState(createQuizState(quizzes[nextIndex]))
+    setReviewIndex(null)
   }
 
   return {
@@ -74,6 +83,23 @@ export function useStudySession(session: StudySessionResponse) {
     index, // 0부터
     quiz,
     isFinished: index >= quizzes.length,
+    viewIndex, // 화면에 보이는 문제 번호. 이전 문제를 보는 중이면 index보다 작다
+    // 이전 문제를 보는 중이면 그 문제와 결과. 결과가 없으면 null
+    review: reviewQuiz
+      ? {
+          quiz: reviewQuiz,
+          result: results[String(reviewQuiz.quizId)] ?? null,
+        }
+      : null,
+    canGoPrev: viewIndex > 0,
+    prev: () => {
+      if (viewIndex > 0) setReviewIndex(viewIndex - 1)
+    },
+    // 이전 문제를 보는 중에 한 문제 앞으로. 지금 푸는 문제에 닿으면 풀이 화면으로 돌아간다
+    nextReview: () => {
+      if (reviewIndex === null) return
+      setReviewIndex(reviewIndex + 1 >= index ? null : reviewIndex + 1)
+    },
     inputs: state.inputs,
     wrong: state.wrong,
     solved,

@@ -137,6 +137,72 @@ function StudyPlay({
     )
   }
 
+  if (session.review) {
+    const { quiz: reviewQuiz, result } = session.review
+    const tone = result ? REVIEW_TONE[result] : null
+    return (
+      <StudyShell
+        onExit={onExit}
+        progress={session.index / session.total}
+        label={`${session.viewIndex + 1} / ${session.total}`}
+        footer={
+          <>
+            <p className={`text-sm ${tone?.text ?? 'text-neutral-500'}`}>
+              {tone?.label ?? '이전 문제'}
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={session.prev}
+                disabled={!session.canGoPrev}
+                className="h-12 rounded-xl border border-neutral-700 px-4 font-semibold text-white transition-colors active:bg-neutral-900 disabled:border-neutral-800 disabled:text-neutral-600"
+              >
+                이전
+              </button>
+              <button
+                type="button"
+                onClick={session.nextReview}
+                className="h-12 rounded-xl bg-white px-8 font-semibold text-black transition-opacity active:opacity-80"
+              >
+                다음
+              </button>
+            </div>
+          </>
+        }
+      >
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 px-5 py-8 md:px-8">
+          <p className="text-xl leading-[3rem] md:text-2xl md:leading-[3.5rem]">
+            {parseBlankedSentence(reviewQuiz.sentence).map(
+              (part, partIndex) => {
+                if (part.type === 'text') {
+                  return <span key={partIndex}>{part.text}</span>
+                }
+                const answer = reviewQuiz.answers[part.index] ?? ''
+                return (
+                  <input
+                    key={partIndex}
+                    type="text"
+                    value={answer}
+                    disabled
+                    aria-label={`${part.index + 1}번째 빈칸`}
+                    // 정답 길이에 맞춘 칸 너비. 값마다 달라서 클래스로 표현할 수 없다
+                    style={{ width: `${Math.max(answer.length, 3) + 2}ch` }}
+                    className={`mx-1 border-b-2 bg-transparent px-1 text-center font-semibold ${
+                      tone?.blank ?? 'border-neutral-500 text-white'
+                    }`}
+                  />
+                )
+              },
+            )}
+          </p>
+          {reviewQuiz.translation && (
+            <p className="mt-6 text-neutral-400">{reviewQuiz.translation}</p>
+          )}
+        </div>
+      </StudyShell>
+    )
+  }
+
   const { quiz } = session
   const parts = parseBlankedSentence(quiz.sentence)
   const hasWrong = session.wrong.some((wrong, i) => wrong && !session.solved[i])
@@ -178,17 +244,37 @@ function StudyPlay({
                   : '빈칸에 들어갈 단어를 입력하세요'}
           </p>
           {session.isQuizDone ? (
-            <button
-              type="button"
-              onClick={session.next}
-              // 끝나면 바로 Enter로 넘어갈 수 있게 포커스를 준다
-              autoFocus
-              className="h-12 shrink-0 rounded-xl bg-white px-8 font-semibold text-black transition-opacity active:opacity-80"
-            >
-              {session.index + 1 === session.total ? '결과 보기' : '다음'}
-            </button>
+            <div className="flex shrink-0 gap-2">
+              {session.canGoPrev && (
+                <button
+                  type="button"
+                  onClick={session.prev}
+                  className="h-12 rounded-xl border border-neutral-700 px-4 font-semibold text-white transition-colors active:bg-neutral-900"
+                >
+                  이전
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={session.next}
+                // 끝나면 바로 Enter로 넘어갈 수 있게 포커스를 준다
+                autoFocus
+                className="h-12 rounded-xl bg-white px-8 font-semibold text-black transition-opacity active:opacity-80"
+              >
+                {session.index + 1 === session.total ? '결과 보기' : '다음'}
+              </button>
+            </div>
           ) : (
             <div className="flex shrink-0 gap-2">
+              {session.canGoPrev && (
+                <button
+                  type="button"
+                  onClick={session.prev}
+                  className="h-12 rounded-xl border border-neutral-700 px-4 font-semibold text-white transition-colors active:bg-neutral-900"
+                >
+                  이전
+                </button>
+              )}
               <button
                 type="button"
                 onClick={session.toggleHint}
@@ -278,6 +364,20 @@ function StudyPlay({
     </StudyShell>
   )
 }
+
+// 이전 문제 보기: 맞힌 문제는 초록, 포기한 문제는 빨강
+const REVIEW_TONE = {
+  CORRECT: {
+    label: '맞힌 문제예요',
+    text: 'text-emerald-400',
+    blank: 'border-emerald-400 text-emerald-400',
+  },
+  GAVE_UP: {
+    label: '포기한 문제예요',
+    text: 'text-red-400',
+    blank: 'border-red-400 text-red-400',
+  },
+} as const
 
 type ShellProps = {
   onExit: () => void
