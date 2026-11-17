@@ -2,7 +2,11 @@ import type { ReactNode } from 'react'
 import { useRef } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { parseQuizSetId } from '../domain/quizSet'
-import { countCorrect, parseBlankedSentence } from '../domain/study'
+import {
+  findWrongQuizzes,
+  formatScore,
+  parseBlankedSentence,
+} from '../domain/study'
 import { useStartStudySession } from '../hooks/useStartStudySession'
 import { useStudySession } from '../hooks/useStudySession'
 import { useStudySessionQuery } from '../hooks/useStudySessionQuery'
@@ -43,8 +47,9 @@ function StudySession({
   const { session, receivedAt, isLoading, failure, resync, replaceSession } =
     useStudySessionQuery(quizSetId)
   const goSignup = () => navigate('/signup', { replace: true })
-  // 결과 화면의 '다시 학습하기'. 새 세션을 받으면 아래 key가 바뀌어 처음부터 그린다
-  const restart = useStartStudySession(quizSetId, {
+  // 결과 화면의 '다시 학습하기'. 완주하면 서버 세션이 지워지므로 restart 없이 부르면 새 세션(201)이 온다.
+  // 새 세션을 받으면 아래 key가 바뀌어 처음부터 그린다
+  const again = useStartStudySession(quizSetId, {
     onStarted: replaceSession,
     onNotFound: onExit,
     onSignupRequired: goSignup,
@@ -75,8 +80,8 @@ function StudySession({
       quizSetId={quizSetId}
       studySession={session}
       onExit={onExit}
-      onRestart={restart.restart}
-      isRestarting={restart.isPending}
+      onStudyAgain={again.start}
+      isStartingAgain={again.isPending}
       onResync={resync}
       onSignupRequired={goSignup}
     />
@@ -87,16 +92,16 @@ function StudyPlay({
   quizSetId,
   studySession,
   onExit,
-  onRestart,
-  isRestarting,
+  onStudyAgain,
+  isStartingAgain,
   onResync,
   onSignupRequired,
 }: {
   quizSetId: number
   studySession: StudySessionResponse
   onExit: () => void
-  onRestart: () => void
-  isRestarting: boolean
+  onStudyAgain: () => void
+  isStartingAgain: boolean
   onResync: () => void
   onSignupRequired: () => void
 }) {
@@ -116,36 +121,56 @@ function StudyPlay({
     )
   }
 
-  // 메모리상 다 풀었어도 서버가 완주 가능하다고 확인해야 결과를 보여준다
-  if ((session.isFinished || !session.quiz) && !session.completable) {
-    return (
-      <StudyShell
-        onExit={onExit}
-        progress={1}
-        label={`${session.total} / ${session.total}`}
-      >
-        <div className="flex flex-col items-center py-16 text-center text-neutral-500">
-          {session.isSaveFailed ? (
-            <>
-              <p>결과를 저장하지 못했어요.</p>
-              <button
-                type="button"
-                onClick={session.retrySave}
-                className="mt-4 h-10 rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900"
-              >
-                다시 시도
-              </button>
-            </>
-          ) : (
-            <p>결과 저장 중...</p>
-          )}
-        </div>
-      </StudyShell>
-    )
-  }
-
   if (session.isFinished || !session.quiz) {
-    const correct = countCorrect(session.results)
+    const { history } = session
+    // 완주 결과를 받기 전: 저장·완주 요청 중이거나 실패
+    if (!history) {
+      const failed = session.isSaveFailed || session.isCompleteFailed
+      return (
+        <StudyShell
+          onExit={onExit}
+          progress={1}
+          label={`${session.total} / ${session.total}`}
+        >
+          <div className="flex flex-col items-center py-16 text-center text-neutral-500">
+            {failed ? (
+              <>
+                <p>결과를 저장하지 못했어요.</p>
+                <button
+                  type="button"
+                  // 저장이 실패했으면 남은 결과부터 보내고, 그 응답으로 완주를 이어서 한다
+                  onClick={
+                    session.isSaveFailed
+                      ? session.retrySave
+                      : session.retryComplete
+                  }
+                  disabled={session.isCompleting}
+                  className="mt-4 h-10 rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900 disabled:text-neutral-500"
+                >
+                  다시 시도
+                </button>
+              </>
+            ) : (
+              <p>결과 저장 중...</p>
+            )}
+          </div>
+        </StudyShell>
+      )
+    }
+
+    // 점수·정답 수·최고 점수·완주 횟수는 모두 서버가 계산한 값을 그대로 보여준다
+    const wrongQuizzes = findWrongQuizzes(
+      session.quizzes,
+      history.wrongRevisionIds,
+    )
+    const extras = [
+      history.bestScore > history.score
+        ? `최고 ${formatScore(history.bestScore)}점`
+        : null,
+      history.completionCount > 1
+        ? `${history.completionCount}번째 완주`
+        : null,
+    ].filter((text) => text !== null)
     return (
       <StudyShell
         onExit={onExit}
@@ -154,19 +179,25 @@ function StudyPlay({
       >
         <div className="flex flex-col items-center rounded-2xl border border-neutral-800 bg-neutral-950 px-6 py-12 text-center">
           <p className="text-2xl font-bold">학습 완료!</p>
-          <p className="mt-3 text-neutral-400">
-            {session.total}문제 중{' '}
-            <span className="font-semibold text-white">{correct}문제</span>를
-            맞혔어요
+          <p className="mt-3 text-lg text-white">
+            {history.correctCount}/{history.totalCount} 정답 ·{' '}
+            <span className="font-semibold">
+              {formatScore(history.score)}점
+            </span>
           </p>
+          {extras.length > 0 && (
+            <p className="mt-1 text-sm text-neutral-400">
+              {extras.join(' · ')}
+            </p>
+          )}
           <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
             <button
               type="button"
-              onClick={onRestart}
-              disabled={isRestarting}
+              onClick={onStudyAgain}
+              disabled={isStartingAgain}
               className="h-12 rounded-xl bg-white font-semibold text-black transition-opacity active:opacity-80 disabled:opacity-50"
             >
-              {isRestarting ? '준비 중...' : '다시 학습하기'}
+              {isStartingAgain ? '준비 중...' : '다시 학습하기'}
             </button>
             <button
               type="button"
@@ -177,6 +208,43 @@ function StudyPlay({
             </button>
           </div>
         </div>
+
+        {wrongQuizzes.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold text-neutral-400">
+              틀린 문제 {wrongQuizzes.length}개
+            </h2>
+            <ul className="mt-3 flex flex-col gap-3">
+              {wrongQuizzes.map((quiz) => (
+                <li
+                  key={quiz.revisionId}
+                  className="rounded-2xl border border-neutral-800 bg-neutral-950 px-5 py-4"
+                >
+                  <p className="leading-7">
+                    {parseBlankedSentence(quiz.sentence).map((part, i) =>
+                      part.type === 'text' ? (
+                        <span key={i}>{part.text}</span>
+                      ) : (
+                        <span key={i} className="font-semibold text-red-400">
+                          {quiz.answers[part.index] ?? ''}
+                        </span>
+                      ),
+                    )}
+                  </p>
+                  <p className="mt-2 text-sm text-neutral-300">
+                    <span className="mr-2 text-neutral-500">정답</span>
+                    {quiz.answers.join(', ')}
+                  </p>
+                  {quiz.translation && (
+                    <p className="mt-1 text-sm text-neutral-400">
+                      {quiz.translation}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </StudyShell>
     )
   }

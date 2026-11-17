@@ -11,9 +11,8 @@ import type {
 } from '../types/study'
 
 type Options = {
-  // 시작 시점에 서버에 결과가 다 저장돼 있었는지
-  initialCompletable: boolean
-  // 저장 성공. pendingEmpty는 보낼 결과가 더 남아 있지 않은지
+  // 저장 성공. pendingEmpty는 보낼 결과가 더 남아 있지 않은지(이때 진행 중인 요청도 없다).
+  // pendingEmpty가 false인 응답은 뒤 결과가 아직 안 들어간 중간 응답이라 completable로 판단하면 안 된다
   onSaved?: (
     progress: StudySessionProgressResponse,
     pendingEmpty: boolean,
@@ -30,7 +29,7 @@ type Options = {
 export function useStudyResultSaver(
   quizSetId: number,
   sessionId: string,
-  { initialCompletable, onSaved, onResync, onSignupRequired }: Options,
+  { onSaved, onResync, onSignupRequired }: Options,
 ) {
   // 요청 콜백 안에서도 최신 값을 읽어야 해서 state가 아닌 ref에 둔다
   const pendingRef = useRef<QuizResultItem[]>([])
@@ -38,7 +37,6 @@ export function useStudyResultSaver(
   // 세션을 잃은 뒤에는 더 보내지 않는다
   const stoppedRef = useRef(false)
 
-  const [completable, setCompletable] = useState(initialCompletable)
   const [isSaving, setIsSaving] = useState(false)
   // 마지막 저장이 실패해 보내지 못한 결과가 남아 있는지
   const [isFailed, setIsFailed] = useState(false)
@@ -60,7 +58,6 @@ export function useStudyResultSaver(
       onSuccess: (progress) => {
         inFlightRef.current = false
         pendingRef.current = removeSavedResults(pendingRef.current, batch)
-        setCompletable(progress.completable)
         const pendingEmpty = pendingRef.current.length === 0
         if (pendingEmpty) setIsSaving(false)
         onSaved?.(progress, pendingEmpty)
@@ -98,8 +95,6 @@ export function useStudyResultSaver(
     },
     // 실패해 남아 있는 결과를 다시 보낸다
     retry: flush,
-    // 서버 기준 완주 가능 여부
-    completable,
     isSaving,
     isFailed,
   }

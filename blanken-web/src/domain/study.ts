@@ -1,6 +1,6 @@
 import type {
   QuizResultItem,
-  StudyResult,
+  QuizSnapshot,
   StudySessionResponse,
 } from '../types/study'
 import { BLANK_PLACEHOLDER } from './quizSentence'
@@ -21,9 +21,6 @@ export const parseBlankedSentence = (sentence: string): StudyPart[] => {
 // 정답 단어와 정확히 일치해야 한다 (대소문자 구분). 앞뒤 공백만 무시한다
 export const isAnswerCorrect = (input: string, answer: string): boolean =>
   input.trim() === answer
-
-export const countCorrect = (results: Record<string, StudyResult>): number =>
-  Object.values(results).filter((result) => result === 'CORRECT').length
 
 // 이어풀기 세션을 이어서 풀지 물어봐야 하는지.
 // 한 문제도 안 풀었으면 처음부터 풀면 되고, 다 풀었으면 결과 화면으로 바로 간다
@@ -54,3 +51,14 @@ export const removeSavedResults = (
   pending.filter(
     (p) => !saved.some((s) => s.quizId === p.quizId && s.result === p.result),
   )
+
+// 서버 점수 표시. 소수가 있을 때만 소수점을 보인다 (85.00 → "85", 85.50 → "85.5")
+export const formatScore = (score: number): string =>
+  String(Number(score.toFixed(2)))
+
+// 완주 결과의 오답(포기한 문제)을 출제 순서대로. revisionId로 찾는다 (quizId가 아님)
+export const findWrongQuizzes = (
+  quizzes: QuizSnapshot[],
+  wrongRevisionIds: number[],
+): QuizSnapshot[] =>
+  quizzes.filter((quiz) => wrongRevisionIds.includes(quiz.revisionId))

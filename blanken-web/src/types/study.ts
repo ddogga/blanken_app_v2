@@ -39,3 +39,18 @@ export type StudySessionProgressResponse = {
   completable: boolean // solvedCount === totalCount. 완주 판단은 이 값으로 한다
   expiresAt: string // ISO-8601(UTC). 저장할 때마다 24시간 연장된다
 }
+
+// POST /api/quiz-sets/{quizSetId}/study-sessions/{sessionId}/complete 응답.
+// 점수·정답 수·오답은 서버가 세션으로 계산한 값이다
+export type StudyHistoryResponse = {
+  historyId: number
+  quizSetId: number
+  quizSetTitle: string
+  score: number // 이번 점수 0.00~100.00
+  bestScore: number // 이 퀴즈셋 최고 점수
+  totalCount: number
+  correctCount: number // 재입력 끝에 맞힌 문제 포함
+  completionCount: number // 이 퀴즈셋 완주 횟수 (이번 포함)
+  solvedAt: string // ISO-8601 (UTC)
+  wrongRevisionIds: number[] // 이번에 포기한 문제의 revisionId (quizId 아님)
+}

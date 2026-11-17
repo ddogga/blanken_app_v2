@@ -5,6 +5,7 @@ import type {
   StudyResult,
   StudySessionResponse,
 } from '../types/study'
+import { useStudyCompletion } from './useStudyCompletion'
 import { useStudyResultSaver } from './useStudyResultSaver'
 
 // 지금 풀고 있는 문제 하나의 상태
@@ -48,14 +49,29 @@ export function useStudySession(
   )
   // 저장 응답 콜백에서 최신 결과 수를 읽기 위한 사본
   const resultsRef = useRef(session.results)
+  // 완주 API를 불러도 되는지. 완주 판단은 서버 기준이다.
+  // 다 푼 세션을 이어풀기로 받았으면 처음부터 true (화면에 들어오자마자 완주)
+  const [canComplete, setCanComplete] = useState(() =>
+    isSessionComplete(session),
+  )
   const saver = useStudyResultSaver(quizSetId, session.sessionId, {
-    initialCompletable: isSessionComplete(session),
     onSaved: (progress, pendingEmpty) => {
+      // 보낼 결과가 남아 있으면 중간 응답이므로 판단하지 않는다
+      if (!pendingEmpty) return
+      if (progress.completable) {
+        setCanComplete(true)
+        return
+      }
       // 메모리상 다 풀었고 보낼 결과도 없는데 서버가 완주 불가라면 서로 어긋난 것. 서버 상태로 다시 맞춘다
       const answeredAll =
         Object.keys(resultsRef.current).length >= quizzes.length
-      if (answeredAll && pendingEmpty && !progress.completable) onResync()
+      if (answeredAll) onResync()
     },
+    onResync,
+    onSignupRequired,
+  })
+  const completion = useStudyCompletion(quizSetId, session.sessionId, {
+    enabled: canComplete,
     onResync,
     onSignupRequired,
   })
@@ -122,6 +138,7 @@ export function useStudySession(
 
   return {
     total: quizzes.length,
+    quizzes,
     index, // 0부터
     quiz,
     isFinished: index >= quizzes.length,
@@ -150,11 +167,13 @@ export function useStudySession(
     isQuizDone,
     allSolved,
     results,
-    // 서버 기준 완주 가능 여부와 저장 상태 (결과 화면에서 쓴다)
-    completable: saver.completable,
-    isSaving: saver.isSaving,
+    // 결과 화면용. 완주 결과(서버 계산값)와 저장·완주 요청 상태
+    history: completion.history,
     isSaveFailed: saver.isFailed,
     retrySave: saver.retry,
+    isCompleting: completion.isPending,
+    isCompleteFailed: completion.isFailed,
+    retryComplete: completion.retry,
     // 이 빈칸 입력이 정답인지 (입력 직후 다음 칸으로 포커스를 옮길 때 쓴다)
     isCorrectInput: (blankIndex: number, value: string) =>
       isAnswerCorrect(value, answers[blankIndex] ?? ''),

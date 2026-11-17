@@ -1,4 +1,5 @@
 import type {
+  StudyHistoryResponse,
   StudySessionProgressResponse,
   StudySessionResponse,
   QuizResultItem,
@@ -30,6 +31,24 @@ export const saveStudyResults = async (
   const res = await apiClient.patch<StudySessionProgressResponse>(
     `/api/quiz-sets/${quizSetId}/study-sessions/${sessionId}/results`,
     { results },
+  )
+  return res.data
+}
+
+// 완주 요청이 응답 없이 끝나지 않는 일이 없도록 이 요청에만 거는 제한 시간
+const COMPLETE_TIMEOUT_MS = 10_000
+
+// POST /api/quiz-sets/{quizSetId}/study-sessions/{sessionId}/complete — 학습 완주 (body 없음)
+// 서버가 세션으로 점수를 계산해 히스토리에 저장하고 세션을 지운다.
+// 멱등: 같은 sessionId로 다시 불러도 같은 결과(200)를 돌려준다
+export const completeStudySession = async (
+  quizSetId: number,
+  sessionId: string,
+): Promise<StudyHistoryResponse> => {
+  const res = await apiClient.post<StudyHistoryResponse>(
+    `/api/quiz-sets/${quizSetId}/study-sessions/${sessionId}/complete`,
+    null,
+    { timeout: COMPLETE_TIMEOUT_MS },
   )
   return res.data
 }
