@@ -423,7 +423,7 @@ function QuizSetEditForm({ detail, update }: FormProps) {
           solvedCount={resumable.nextQuizIndex}
           total={resumable.quizzes.length}
           isRestarting={study.isPending}
-          // 받은 세션이 캐시에 있으므로 그대로 이동하면 이어서 푼다
+          // 학습 화면은 들어올 때 진행 중인 세션을 받아 이어서 푼다
           onResume={goStudy}
           onRestart={study.restart}
           onClose={() => setResumable(null)}

@@ -20,3 +20,22 @@ export type StudySessionResponse = {
   results: Record<string, StudyResult> // 이미 푼 문제. 키는 quizId 문자열 ("12")
   nextQuizIndex: number // 이어서 풀 위치. 다 풀었으면 quizzes.length
 }
+
+export type QuizResultItem = {
+  quizId: number // 세션의 quizzes에 있는 quizId
+  result: StudyResult
+}
+
+// PATCH /api/quiz-sets/{quizSetId}/study-sessions/{sessionId}/results 요청
+export type StudySessionResultsRequest = {
+  results: QuizResultItem[] // 1개 이상. 같은 quizId는 서버가 마지막 값으로 덮어쓴다
+}
+
+// PATCH /api/quiz-sets/{quizSetId}/study-sessions/{sessionId}/results 응답
+export type StudySessionProgressResponse = {
+  sessionId: string
+  solvedCount: number // 서버에 결과가 저장된 문제 수
+  totalCount: number // 세션의 전체 문제 수
+  completable: boolean // solvedCount === totalCount. 완주 판단은 이 값으로 한다
+  expiresAt: string // ISO-8601(UTC). 저장할 때마다 24시간 연장된다
+}

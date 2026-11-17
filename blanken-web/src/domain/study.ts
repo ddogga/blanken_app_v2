@@ -1,4 +1,8 @@
-import type { StudyResult, StudySessionResponse } from '../types/study'
+import type {
+  QuizResultItem,
+  StudyResult,
+  StudySessionResponse,
+} from '../types/study'
 import { BLANK_PLACEHOLDER } from './quizSentence'
 
 export type StudyPart =
@@ -27,3 +31,26 @@ export const needsResumeConfirm = (session: StudySessionResponse): boolean =>
   session.resumed &&
   Object.keys(session.results).length > 0 &&
   session.nextQuizIndex < session.quizzes.length
+
+// 서버에 결과가 다 저장된 세션인지 (다 풀고 완주 전에 나갔다가 이어풀기로 들어온 경우)
+export const isSessionComplete = (session: StudySessionResponse): boolean =>
+  session.quizzes.every((quiz) => String(quiz.quizId) in session.results)
+
+// 저장 대기 결과에 새 결과를 더한다. 같은 quizId는 마지막 결과 하나만 남긴다
+export const mergePendingResults = (
+  pending: QuizResultItem[],
+  item: QuizResultItem,
+): QuizResultItem[] => [
+  ...pending.filter((p) => p.quizId !== item.quizId),
+  item,
+]
+
+// 저장에 성공한 결과를 대기 목록에서 뺀다.
+// 요청 중에 같은 quizId의 결과가 새로 쌓였으면 그 결과는 남긴다
+export const removeSavedResults = (
+  pending: QuizResultItem[],
+  saved: QuizResultItem[],
+): QuizResultItem[] =>
+  pending.filter(
+    (p) => !saved.some((s) => s.quizId === p.quizId && s.result === p.result),
+  )

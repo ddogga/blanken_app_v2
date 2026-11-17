@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { isAnswerCorrect } from '../domain/study'
+import { useRef, useState } from 'react'
+import { isAnswerCorrect, isSessionComplete } from '../domain/study'
 import type {
   QuizSnapshot,
   StudyResult,
   StudySessionResponse,
 } from '../types/study'
+import { useStudyResultSaver } from './useStudyResultSaver'
 
 // 지금 풀고 있는 문제 하나의 상태
 type QuizState = {
@@ -24,14 +25,40 @@ const createQuizState = (quiz: QuizSnapshot | undefined): QuizState => ({
 // 퀴즈 풀이 진행. 채점은 클라이언트에서 실시간으로 한다.
 // 틀려도 무제한 다시 입력할 수 있고, 포기해야만 오답으로 기록한다.
 // 서버 세션의 진행 위치(nextQuizIndex)와 이미 푼 결과(results)에서 이어서 시작한다.
-// 처음 마운트될 때의 세션만 쓰므로, 세션이 바뀌면 key로 다시 마운트해야 한다
-export function useStudySession(session: StudySessionResponse) {
+// 처음 마운트될 때의 세션만 쓰므로, 세션이 바뀌면 key로 다시 마운트해야 한다.
+// 진행 상황의 기준은 서버다. 여기 상태는 화면을 그리기 위한 사본이고,
+// 문제의 결과가 정해지는 순간(정답·포기) 서버에 저장한다
+export function useStudySession(
+  quizSetId: number,
+  session: StudySessionResponse,
+  {
+    onResync,
+    onSignupRequired,
+  }: {
+    // 세션을 잃었거나 서버와 상태가 어긋남 → 학습 시작 API로 세션을 다시 받아야 한다
+    onResync: () => void
+    onSignupRequired: () => void
+  },
+) {
   const { quizzes } = session
   const [index, setIndex] = useState(session.nextQuizIndex)
-  // 키는 quizId 문자열. 서버 응답 results와 같은 모양
+  // 키는 quizId 문자열. 서버 응답 results와 같은 모양. 결과가 정해지면 응답을 기다리지 않고 바로 반영한다
   const [results, setResults] = useState<Record<string, StudyResult>>(
     session.results,
   )
+  // 저장 응답 콜백에서 최신 결과 수를 읽기 위한 사본
+  const resultsRef = useRef(session.results)
+  const saver = useStudyResultSaver(quizSetId, session.sessionId, {
+    initialCompletable: isSessionComplete(session),
+    onSaved: (progress, pendingEmpty) => {
+      // 메모리상 다 풀었고 보낼 결과도 없는데 서버가 완주 불가라면 서로 어긋난 것. 서버 상태로 다시 맞춘다
+      const answeredAll =
+        Object.keys(resultsRef.current).length >= quizzes.length
+      if (answeredAll && pendingEmpty && !progress.completable) onResync()
+    },
+    onResync,
+    onSignupRequired,
+  })
   const [state, setState] = useState<QuizState>(() =>
     createQuizState(quizzes[session.nextQuizIndex]),
   )
@@ -53,13 +80,28 @@ export function useStudySession(session: StudySessionResponse) {
   // 다 맞혔거나 포기했으면 이 문제는 끝. 다음으로 넘어갈 수 있다
   const isQuizDone = allSolved || state.gaveUp
 
+  // 채점 결과를 메모리에 반영하고 서버에 저장한다
+  const record = (target: QuizSnapshot, result: StudyResult) => {
+    const next = { ...resultsRef.current, [String(target.quizId)]: result }
+    resultsRef.current = next
+    setResults(next)
+    saver.save({ quizId: target.quizId, result })
+  }
+
   const setInput = (blankIndex: number, value: string) => {
-    if (isQuizDone || solved[blankIndex]) return
-    setState((prev) => ({
-      ...prev,
-      inputs: prev.inputs.map((v, i) => (i === blankIndex ? value : v)),
-      wrong: prev.wrong.map((v, i) => (i === blankIndex ? false : v)),
-    }))
+    if (!quiz || isQuizDone || solved[blankIndex]) return
+    const inputs = state.inputs.map((v, i) => (i === blankIndex ? value : v))
+    setState({
+      ...state,
+      inputs,
+      wrong: state.wrong.map((v, i) => (i === blankIndex ? false : v)),
+    })
+    // 이 입력으로 모든 빈칸을 맞혔으면 정답 처리
+    if (
+      answers.every((answer, i) => isAnswerCorrect(inputs[i] ?? '', answer))
+    ) {
+      record(quiz, 'CORRECT')
+    }
   }
 
   // Enter로 제출했는데 틀렸으면 틀렸다고 표시한다
@@ -108,6 +150,11 @@ export function useStudySession(session: StudySessionResponse) {
     isQuizDone,
     allSolved,
     results,
+    // 서버 기준 완주 가능 여부와 저장 상태 (결과 화면에서 쓴다)
+    completable: saver.completable,
+    isSaving: saver.isSaving,
+    isSaveFailed: saver.isFailed,
+    retrySave: saver.retry,
     // 이 빈칸 입력이 정답인지 (입력 직후 다음 칸으로 포커스를 옮길 때 쓴다)
     isCorrectInput: (blankIndex: number, value: string) =>
       isAnswerCorrect(value, answers[blankIndex] ?? ''),
@@ -116,14 +163,13 @@ export function useStudySession(session: StudySessionResponse) {
     toggleHint: () =>
       setState((prev) => ({ ...prev, showHint: !prev.showHint })),
     giveUp: () => {
-      if (!isQuizDone) setState((prev) => ({ ...prev, gaveUp: true }))
+      if (!quiz || isQuizDone) return
+      setState((prev) => ({ ...prev, gaveUp: true }))
+      record(quiz, 'GAVE_UP')
     },
-    // TODO: 결과 저장 API가 생기면 여기서 이 문제의 결과를 서버 세션에 저장한다
+    // 다음 문제로. 결과는 정답·포기 순간에 이미 기록했다
     next: () => {
-      if (!isQuizDone || !quiz) return
-      const result: StudyResult = state.gaveUp ? 'GAVE_UP' : 'CORRECT'
-      setResults((prev) => ({ ...prev, [String(quiz.quizId)]: result }))
-      goTo(index + 1)
+      if (isQuizDone) goTo(index + 1)
     },
   }
 }

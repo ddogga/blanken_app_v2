@@ -40,11 +40,14 @@ function StudySession({
   onExit: () => void
 }) {
   const navigate = useNavigate()
-  const { session, isLoading, failure } = useStudySessionQuery(quizSetId)
-  // 결과 화면의 '다시 학습하기'. 새 세션이 캐시에 들어가면 아래 key가 바뀌어 처음부터 그린다
+  const { session, receivedAt, isLoading, failure, resync, replaceSession } =
+    useStudySessionQuery(quizSetId)
+  const goSignup = () => navigate('/signup', { replace: true })
+  // 결과 화면의 '다시 학습하기'. 새 세션을 받으면 아래 key가 바뀌어 처음부터 그린다
   const restart = useStartStudySession(quizSetId, {
+    onStarted: replaceSession,
     onNotFound: onExit,
-    onSignupRequired: () => navigate('/signup', { replace: true }),
+    onSignupRequired: goSignup,
   })
 
   if (failure?.type === 'signupRequired') {
@@ -66,28 +69,41 @@ function StudySession({
     )
   }
   return (
+    // 세션을 새로 받으면(다시 학습하기, 서버 상태로 다시 맞춤) 메모리 상태를 버리고 처음부터 그린다
     <StudyPlay
-      key={session.sessionId}
+      key={`${session.sessionId}:${receivedAt}`}
+      quizSetId={quizSetId}
       studySession={session}
       onExit={onExit}
       onRestart={restart.restart}
       isRestarting={restart.isPending}
+      onResync={resync}
+      onSignupRequired={goSignup}
     />
   )
 }
 
 function StudyPlay({
+  quizSetId,
   studySession,
   onExit,
   onRestart,
   isRestarting,
+  onResync,
+  onSignupRequired,
 }: {
+  quizSetId: number
   studySession: StudySessionResponse
   onExit: () => void
   onRestart: () => void
   isRestarting: boolean
+  onResync: () => void
+  onSignupRequired: () => void
 }) {
-  const session = useStudySession(studySession)
+  const session = useStudySession(quizSetId, studySession, {
+    onResync,
+    onSignupRequired,
+  })
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   if (session.total === 0) {
@@ -96,6 +112,34 @@ function StudyPlay({
         <p className="py-16 text-center text-neutral-500">
           학습할 퀴즈가 없어요.
         </p>
+      </StudyShell>
+    )
+  }
+
+  // 메모리상 다 풀었어도 서버가 완주 가능하다고 확인해야 결과를 보여준다
+  if ((session.isFinished || !session.quiz) && !session.completable) {
+    return (
+      <StudyShell
+        onExit={onExit}
+        progress={1}
+        label={`${session.total} / ${session.total}`}
+      >
+        <div className="flex flex-col items-center py-16 text-center text-neutral-500">
+          {session.isSaveFailed ? (
+            <>
+              <p>결과를 저장하지 못했어요.</p>
+              <button
+                type="button"
+                onClick={session.retrySave}
+                className="mt-4 h-10 rounded-xl border border-neutral-700 px-4 text-sm text-white transition-colors active:bg-neutral-900"
+              >
+                다시 시도
+              </button>
+            </>
+          ) : (
+            <p>결과 저장 중...</p>
+          )}
+        </div>
       </StudyShell>
     )
   }
